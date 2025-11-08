@@ -40,7 +40,7 @@ export default function RootLayout() {
       }}
     >
       <Tabs.Screen
-        name="home"
+        name="index"
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => <HomeLogo width={size} height={size} stroke={color} />,
@@ -59,7 +59,7 @@ export default function RootLayout() {
         name="create-video"
         options={{
           title: "",
-          tabBarIcon: ({ size }) => <PlusLogo width={size + 18} height={size + 18} stroke={ACCENT} />,
+          tabBarIcon: ({ size }) => <PlusLogo width={size + 14} height={size + 14} stroke="#fff" />,
           tabBarButton: (props) => <CreateButton {...props} />,
         }}
       />
@@ -85,17 +85,21 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === "ios" ? 88 : 70,
-    paddingTop: 6,
-    paddingBottom: Platform.OS === "ios" ? 26 : 8,
-    borderTopWidth: 0.5,
-    borderColor: "#e6e6e6",
+    height: Platform.OS === "android" ? 88 : 68,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 26 : 10,
+    borderTopWidth: 0,
     backgroundColor: "#fff",
-    elevation: 8,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
+    fontWeight: "600",
   },
   createWrapper: {
     top: Platform.OS === "ios" ? -26 : -18,
@@ -104,17 +108,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   createButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#fff",
-    borderWidth: 3,
-    borderColor: ACCENT,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: ACCENT,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
   },
 });

@@ -1,15 +1,18 @@
+import { ImageSourcePropType } from "react-native";
+
 export interface User {
   id: string;
   username: string;
   fullName: string;
   email: string;
-  profileImage: string;
+  profileImage: string | ImageSourcePropType;
   bio?: string;
   followers: number;
   following: number;
   likes: number;
   isFollowing?: boolean;
   isVerified?: boolean;
+  isOnline?: boolean;
 }
 
 export interface Video {
@@ -17,7 +20,7 @@ export interface Video {
   title: string;
   description: string;
   videoUrl: string;
-  thumbnail: string;
+  thumbnail: string | ImageSourcePropType;
   views: number;
   likes: number;
   comments: number;
@@ -25,7 +28,7 @@ export interface Video {
   duration: number;
   user: User;
   hashtags: string[];
-  audio: Audio;
+  audio?: Audio;
   createdAt: string;
   isLiked?: boolean;
   products?: Product[];
@@ -38,6 +41,8 @@ export interface Audio {
   url: string;
   isFavorite: boolean;
   creator: string;
+  cover?: string | ImageSourcePropType;
+  plays?: number;
 }
 
 export interface Comment {
@@ -69,6 +74,51 @@ export interface Notification {
   createdAt: string;
 }
 
+// Home Screen Section Types
+export interface StoryItem {
+  id: string;
+  name: string;
+  image: ImageSourcePropType;
+  isYou: boolean;
+  online: boolean;
+}
+
+export interface TrendingItem {
+  id: string;
+  title: string;
+  views: string;
+  image: ImageSourcePropType;
+  user?: User;
+}
+
+export interface TopicItem {
+  id: string;
+  title: string;
+  icon: ImageSourcePropType;
+  color?: string;
+}
+
+export interface StreamItem {
+  id: string;
+  title: string;
+  views: string;
+  avatar: ImageSourcePropType;
+  image: ImageSourcePropType;
+  isLive: boolean;
+  user?: User;
+}
+
+export interface AudioItem {
+  id: string;
+  title: string;
+  artist: string;
+  duration: string;
+  cover: ImageSourcePropType;
+  plays?: number;
+  isFavorite?: boolean;
+}
+
+// Legacy types (deprecated - use new interfaces above)
 export type Story = {
   id: string;
   name: string;
