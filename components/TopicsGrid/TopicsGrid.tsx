@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     iconContainer: {
-        width: cardWidth - 8,
-        height: cardWidth - 8,
+        width: cardWidth - 16,
+        height: cardWidth - 16,
         borderRadius: 16,
         alignItems: "center",
         justifyContent: "center",

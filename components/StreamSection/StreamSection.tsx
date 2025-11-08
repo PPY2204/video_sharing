@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     listContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 8,
     },
     separator: {
         width: 12,

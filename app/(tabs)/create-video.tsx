@@ -6,18 +6,43 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Mock data
+const audioTracks = [
+    { id: "1", title: "Beautiful lady", duration: "00:30", thumbnail: require("@/assets/images/search/container-40.png") },
+    { id: "2", title: "Nice day", duration: "00:30", thumbnail: require("@/assets/images/search/container-41.png") },
+    { id: "3", title: "Sunny", duration: "00:30", thumbnail: require("@/assets/images/search/container-43.png") },
+    { id: "4", title: "Flowers", duration: "00:30", thumbnail: require("@/assets/images/search/container-44.png") },
+    { id: "5", title: "Morning coffee", duration: "00:30", thumbnail: require("@/assets/images/search/container-45.png") },
+];
+
+const filters = [
+    { id: "1", name: "Film", thumbnail: require("@/assets/images/search/container-40.png") },
+    { id: "2", name: "Black white", thumbnail: require("@/assets/images/search/container-41.png") },
+    { id: "3", name: "Natural", thumbnail: require("@/assets/images/search/avatar-13.png") },
+    { id: "4", name: "Art", thumbnail: require("@/assets/images/search/container-43.png") },
+    { id: "5", name: "Vintage", thumbnail: require("@/assets/images/search/container-44.png") },
+    { id: "6", name: "Spring", thumbnail: require("@/assets/images/search/container-45.png") },
+    { id: "7", name: "Baby", thumbnail: require("@/assets/images/search/avatar-14.png") },
+    { id: "8", name: "Contrast", thumbnail: require("@/assets/images/search/container-38.png") },
+];
+
 export default function CreateVideo() {
+    const [currentScreen, setCurrentScreen] = useState<"camera" | "post" | "filter" | "audio">("camera");
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [hashtag, setHashtag] = useState("Happy momments");
+    const [hashtag, setHashtag] = useState("Happy moments");
+    const [taggedPeople, setTaggedPeople] = useState(3);
     const [commentsEnabled, setCommentsEnabled] = useState(true);
     const [postToFacebook, setPostToFacebook] = useState(true);
     const [postToTwitter, setPostToTwitter] = useState(false);
     const [postToInstagram, setPostToInstagram] = useState(true);
+    const [filterModalVisible, setFilterModalVisible] = useState(false);
+    const [audioModalVisible, setAudioModalVisible] = useState(false);
+    const [activeFilterTab, setActiveFilterTab] = useState("for-you");
 
     return (
         <SafeAreaView className="flex-1 bg-white">
