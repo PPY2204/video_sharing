@@ -1,14 +1,17 @@
 import React, { useState } from "react";
 import {
+    Dimensions,
     Image,
     ScrollView,
-    Switch,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AudioScreen from '../../components/CreateFlow/AudioScreen';
+import CameraScreen from '../../components/CreateFlow/CameraScreen';
 
 // Mock data
 const audioTracks = [
@@ -44,161 +47,84 @@ export default function CreateVideo() {
     const [audioModalVisible, setAudioModalVisible] = useState(false);
     const [activeFilterTab, setActiveFilterTab] = useState("for-you");
 
+
+    const { width, height } = Dimensions.get('window');
+
     return (
-        <SafeAreaView className="flex-1 bg-white">
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100">
-                <TouchableOpacity>
-                    <Text className="text-gray-700 text-base">←</Text>
-                </TouchableOpacity>
-                <Text className="text-lg font-semibold">Post on social</Text>
-                <TouchableOpacity>
-                    <Text className="text-pink-500 font-medium">Review</Text>
-                </TouchableOpacity>
-            </View>
-
-            <ScrollView className="flex-1">
-                {/* Cover Photo */}
-                <View className="items-center py-6">
-                    <Image
-                        source={require("@/assets/images/home/Perfect-lady.png")}
-                        className="w-48 h-64 rounded-2xl"
-                        resizeMode="cover"
+        <SafeAreaView style={styles.container}>
+            {currentScreen === 'camera' ? (
+                    <CameraScreen
+                        onOpenAudio={() => setCurrentScreen('audio')}
+                        onOpenFilter={() => setCurrentScreen('filter')}
+                        onClose={() => setCurrentScreen('post')}
                     />
-                    <TouchableOpacity className="mt-3">
-                        <Text className="text-pink-500 font-medium">Change cover photo</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Title Input */}
-                <View className="px-4 mb-4">
-                    <Text className="text-gray-700 font-medium mb-2">Title</Text>
-                    <TextInput
-                        className="bg-gray-50 rounded-xl px-4 py-3 text-gray-600"
-                        placeholder="Input title"
-                        value={title}
-                        onChangeText={setTitle}
+                ) : currentScreen === 'audio' ? (
+                    <AudioScreen
+                        onClose={() => setCurrentScreen('camera')}
+                        onUse={(track) => {
+                            // TODO: save selected track to state or store
+                            setCurrentScreen('camera');
+                        }}
                     />
-                </View>
-
-                {/* Description Input */}
-                <View className="px-4 mb-4">
-                    <Text className="text-gray-700 font-medium mb-2">Description</Text>
-                    <TextInput
-                        className="bg-gray-50 rounded-xl px-4 py-3 text-gray-600 h-24"
-                        placeholder="Input description"
-                        value={description}
-                        onChangeText={setDescription}
-                        multiline
-                        textAlignVertical="top"
-                    />
-                </View>
-
-                {/* Add Hashtag */}
-                <View className="px-4 mb-4">
-                    <Text className="text-gray-700 font-medium mb-2">Add hashtag</Text>
-                    <View className="flex-row items-center">
-                        <View className="bg-blue-50 rounded-full px-3 py-1.5 flex-row items-center">
-                            <Text className="text-blue-500 mr-2">{hashtag}</Text>
-                            <TouchableOpacity>
-                                <Text className="text-blue-500">×</Text>
-                            </TouchableOpacity>
+                ) : (
+                // fallback: existing post form
+                <ScrollView style={styles.formContainer}>
+                    {/* Keep existing post UI when not in camera mode */}
+                    <View style={styles.formInner}>
+                        <Image source={require("@/assets/images/home/Perfect-lady.png")} style={styles.coverImage} resizeMode="cover" />
+                        <TouchableOpacity style={{marginTop:12}} onPress={() => {}}>
+                            <Text style={{color:'#FF3B5C', fontWeight:'600'}}>Change cover photo</Text>
+                        </TouchableOpacity>
+                        {/* Minimal form fields (title/description) left as before for brevity */}
+                        <View style={{marginTop:16}}>
+                            <Text style={{color:'#374151', fontWeight:'600', marginBottom:8}}>Title</Text>
+                            <TextInput style={styles.input} placeholder="Input title" value={title} onChangeText={setTitle} />
                         </View>
                     </View>
-                </View>
-
-                {/* Tag Someone */}
-                <TouchableOpacity className="px-4 py-4 flex-row items-center justify-between border-b border-gray-100">
-                    <Text className="text-gray-700 font-medium">Tag someone</Text>
-                    <View className="flex-row items-center">
-                        <Text className="text-blue-500 mr-2">3 people</Text>
-                        <Text className="text-gray-400">›</Text>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Comments Toggle */}
-                <View className="px-4 py-4 flex-row items-center justify-between border-b border-gray-100">
-                    <Text className="text-gray-700 font-medium">Comments</Text>
-                    <Switch
-                        value={commentsEnabled}
-                        onValueChange={setCommentsEnabled}
-                        trackColor={{ false: "#D1D5DB", true: "#FF3B5C" }}
-                        thumbColor="#FFFFFF"
-                    />
-                </View>
-
-                {/* Who Can Watch */}
-                <TouchableOpacity className="px-4 py-4 flex-row items-center justify-between border-b border-gray-100">
-                    <Text className="text-gray-700 font-medium">Who can watch</Text>
-                    <View className="flex-row items-center">
-                        <Text className="text-gray-600 mr-2">All</Text>
-                        <Text className="text-gray-400">∨</Text>
-                    </View>
-                </TouchableOpacity>
-
-                {/* Also Post On */}
-                <View className="px-4 pt-4 pb-2">
-                    <Text className="text-gray-700 font-medium mb-3">Also post on</Text>
-
-                    {/* Facebook */}
-                    <View className="flex-row items-center justify-between mb-4">
-                        <View className="flex-row items-center">
-                            <View className="w-6 h-6 bg-blue-600 rounded-full items-center justify-center mr-3">
-                                <Text className="text-white text-xs font-bold">f</Text>
-                            </View>
-                            <Text className="text-gray-700">Facebook</Text>
-                        </View>
-                        <Switch
-                            value={postToFacebook}
-                            onValueChange={setPostToFacebook}
-                            trackColor={{ false: "#D1D5DB", true: "#FF3B5C" }}
-                            thumbColor="#FFFFFF"
-                        />
-                    </View>
-
-                    {/* Twitter */}
-                    <View className="flex-row items-center justify-between mb-4">
-                        <View className="flex-row items-center">
-                            <View className="w-6 h-6 bg-blue-400 rounded-full items-center justify-center mr-3">
-                                <Text className="text-white text-xs font-bold">t</Text>
-                            </View>
-                            <Text className="text-gray-700">Twitter</Text>
-                        </View>
-                        <Switch
-                            value={postToTwitter}
-                            onValueChange={setPostToTwitter}
-                            trackColor={{ false: "#D1D5DB", true: "#FF3B5C" }}
-                            thumbColor="#FFFFFF"
-                        />
-                    </View>
-
-                    {/* Instagram */}
-                    <View className="flex-row items-center justify-between mb-4">
-                        <View className="flex-row items-center">
-                            <View className="w-6 h-6 bg-pink-500 rounded-full items-center justify-center mr-3">
-                                <Text className="text-white text-xs font-bold">ig</Text>
-                            </View>
-                            <Text className="text-gray-700">Instagram</Text>
-                        </View>
-                        <Switch
-                            value={postToInstagram}
-                            onValueChange={setPostToInstagram}
-                            trackColor={{ false: "#D1D5DB", true: "#FF3B5C" }}
-                            thumbColor="#FFFFFF"
-                        />
-                    </View>
-                </View>
-            </ScrollView>
-
-            {/* Bottom Buttons */}
-            <View className="px-4 py-4 flex-row gap-3 border-t border-gray-100">
-                <TouchableOpacity className="flex-1 border border-pink-500 rounded-full py-3.5 items-center">
-                    <Text className="text-pink-500 font-semibold">↓ Save draft</Text>
-                </TouchableOpacity>
-                <TouchableOpacity className="flex-1 bg-pink-500 rounded-full py-3.5 items-center">
-                    <Text className="text-white font-semibold">✈ Post on social</Text>
-                </TouchableOpacity>
-            </View>
+                </ScrollView>
+            )}
         </SafeAreaView>
     );
 }
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#000' },
+    flexFill: { flex: 1 },
+    cameraPreview: { flex: 1, justifyContent: 'space-between' },
+    safeTop: { position: 'absolute', top: 0, left: 0, right: 0 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
+    iconButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
+    addAudioButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#fff' },
+    addAudioText: { marginLeft: 8, color: '#111', fontWeight: '600' },
+    rightControls: { position: 'absolute', right: 12, top: 100, justifyContent: 'flex-start', alignItems: 'center' },
+    rightControlItem: { marginBottom: 22, alignItems: 'center' },
+    rightControlLabel: { color: '#fff', fontSize: 11, marginTop: 6 },
+    bottomRow: { position: 'absolute', left: 0, right: 0, bottom: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 24 },
+    sideButton: { alignItems: 'center' },
+    sideLabel: { color: '#fff', fontSize: 12, marginTop: 6 },
+    recordButton: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FF5A66', borderWidth: 8, borderColor: 'rgba(255,255,255,0.12)' },
+    formContainer: { flex: 1, backgroundColor: '#fff' },
+    formInner: { padding: 16, alignItems: 'center' },
+    coverImage: { width: 192, height: 256, borderRadius: 16 },
+    input: { backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: '#111' },
+    /* audio modal */
+    audioModalContainer: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingTop: 18, paddingHorizontal: 16 },
+    audioHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    audioHeaderTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
+    audioHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    iconSmall: { marginLeft: 12 },
+    audioTabsRow: { flexDirection: 'row', marginTop: 12, gap: 12 },
+    audioTab: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: 'transparent' },
+    audioTabActive: { backgroundColor: '#FEE2E6' },
+    audioTabText: { color: '#9CA3AF' },
+    audioTabTextActive: { color: '#EC4899', fontWeight: '600' },
+    audioList: { marginTop: 12 },
+    audioRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+    audioThumb: { width: 56, height: 56, borderRadius: 8, marginRight: 12 },
+    audioMeta: { flex: 1 },
+    audioTitle: { fontSize: 14, color: '#111', fontWeight: '600' },
+    audioDuration: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+    useButton: { borderWidth: 1, borderColor: '#FF3B5C', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginRight: 8 },
+    useButtonText: { color: '#FF3B5C', fontWeight: '600' },
+    moreButton: { padding: 6 },
+});

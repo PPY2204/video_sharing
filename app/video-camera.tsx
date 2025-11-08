@@ -7,7 +7,7 @@ export default function VideoCamera() {
         <View className="flex-1 bg-black">
             {/* Background Image/Camera View */}
             <Image
-                source={require("@/assets/images/home/Perfect-lady.png")}
+                source={require("@/assets/images/create-video-upload-video/image-31.png")}
                 className="absolute w-full h-full"
                 resizeMode="cover"
             />
