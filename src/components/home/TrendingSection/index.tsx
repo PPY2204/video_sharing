@@ -1,8 +1,9 @@
-import { MOCK_TRENDING } from "@/data";
-import type { TrendingItem } from "@/types";
+import { useTrendingVideos } from "@/hooks/useVideos";
+import type { Video } from "@/types";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     Image,
@@ -17,41 +18,56 @@ const CARD_WIDTH = (width - 48) / 2.3;
 
 export default function TrendingSection() {
     const router = useRouter();
+    const { videos, isLoading } = useTrendingVideos(5);
 
-    const renderTrendingItem = ({ item }: { item: TrendingItem }) => (
-        <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.9}
-            onPress={() => router.push(`/video/${item.id}`)}
-        >
-            <View style={styles.cardContainer}>
-                <Image
-                    source={item.image}
-                    style={styles.thumbnail}
-                    resizeMode="cover"
-                />
-                <View style={styles.overlay}>
-                    <Text style={styles.title} numberOfLines={1}>
-                        {item.title}
-                    </Text>
-                    <View style={styles.statsRow}>
-                        {item.user && (
-                            <Image
-                                source={
-                                    typeof item.user.profileImage === "string"
-                                        ? { uri: item.user.profileImage }
-                                        : item.user.profileImage
-                                }
-                                style={styles.avatar}
-                                resizeMode="cover"
-                            />
-                        )}
-                        <Text style={styles.views}>{item.views} views</Text>
+    const formatViews = (views: number) => {
+        if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
+        if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
+        return views.toString();
+    };
+
+    const renderTrendingItem = ({ item }: { item: Video }) => {
+        const thumbnailSource = typeof item.thumbnail === 'string'
+            ? { uri: item.thumbnail }
+            : item.thumbnail;
+
+        const avatarSource = item.user?.profileImage
+            ? typeof item.user.profileImage === 'string'
+                ? { uri: item.user.profileImage }
+                : item.user.profileImage
+            : { uri: 'https://via.placeholder.com/40' };
+
+        return (
+            <TouchableOpacity
+                style={styles.card}
+                activeOpacity={0.9}
+                onPress={() => router.push(`/video/${item.id}`)}
+            >
+                <View style={styles.cardContainer}>
+                    <Image
+                        source={thumbnailSource}
+                        style={styles.thumbnail}
+                        resizeMode="cover"
+                    />
+                    <View style={styles.overlay}>
+                        <Text style={styles.title} numberOfLines={1}>
+                            {item.title}
+                        </Text>
+                        <View style={styles.statsRow}>
+                            {item.user && (
+                                <Image
+                                    source={avatarSource}
+                                    style={styles.avatar}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            <Text style={styles.views}>{formatViews(item.views)} views</Text>
+                        </View>
                     </View>
                 </View>
-            </View>
-        </TouchableOpacity>
-    );
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -62,15 +78,21 @@ export default function TrendingSection() {
                 </TouchableOpacity>
             </View>
 
-            <FlatList
-                data={MOCK_TRENDING}
-                renderItem={renderTrendingItem}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FF3B5C" />
+                </View>
+            ) : (
+                <FlatList
+                    data={videos}
+                    renderItem={renderTrendingItem}
+                    keyExtractor={(item) => item.id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.listContent}
+                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                />
+            )}
         </View>
     );
 }
@@ -151,5 +173,10 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: "#fff",
         fontWeight: "500",
+    },
+    loadingContainer: {
+        paddingHorizontal: 16,
+        paddingVertical: 20,
+        alignItems: 'center',
     },
 });

@@ -1,7 +1,8 @@
-import { MOCK_AUDIO_ITEMS } from "@/data";
-import type { AudioItem } from "@/types";
-import React from "react";
+import { supabaseService } from "@/services/supabase.service";
+import type { Audio } from "@/types";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Image,
     StyleSheet,
@@ -11,18 +12,42 @@ import {
 } from "react-native";
 
 export default function AudioSection() {
-    const renderAudioItem = ({ item }: { item: AudioItem }) => (
-        <TouchableOpacity style={styles.audioCard} activeOpacity={0.8}>
-            <Image source={item.cover} style={styles.audioCover} />
-            <Text style={styles.audioTitle} numberOfLines={1}>
-                {item.title}
-            </Text>
-            <Text style={styles.audioArtist} numberOfLines={1}>
-                {item.artist}
-            </Text>
-            <Text style={styles.audioDuration}>{item.duration}</Text>
-        </TouchableOpacity>
-    );
+    const [audioTracks, setAudioTracks] = useState<Audio[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadAudio = async () => {
+            try {
+                const data = await supabaseService.audio.getAudioTracks();
+                setAudioTracks(data.slice(0, 10)); // Take first 10 tracks
+            } catch (error) {
+                console.error('Failed to load audio:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadAudio();
+    }, []);
+
+    const renderAudioItem = ({ item }: { item: Audio }) => {
+        const coverSource = typeof item.cover === 'string'
+            ? { uri: item.cover }
+            : item.cover;
+
+        return (
+            <TouchableOpacity style={styles.audioCard} activeOpacity={0.8}>
+                <Image source={coverSource} style={styles.audioCover} />
+                <Text style={styles.audioTitle} numberOfLines={1}>
+                    {item.name}
+                </Text>
+                <Text style={styles.audioArtist} numberOfLines={1}>
+                    {item.creator}
+                </Text>
+                <Text style={styles.audioDuration}>{item.duration}</Text>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -32,15 +57,21 @@ export default function AudioSection() {
                     <Text style={styles.viewMore}>View more</Text>
                 </TouchableOpacity>
             </View>
-            <FlatList
-                data={MOCK_AUDIO_ITEMS}
-                renderItem={renderAudioItem}
-                keyExtractor={(item) => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FF3B5C" />
+                </View>
+            ) : (
+                <FlatList
+                    data={audioTracks}
+                    renderItem={renderAudioItem}
+                    keyExtractor={(item) => item.id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.listContent}
+                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                />
+            )}
         </View>
     );
 }
@@ -98,5 +129,10 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: "#999",
         marginTop: 2,
+    },
+    loadingContainer: {
+        paddingVertical: 20,
+        paddingHorizontal: 16,
+        alignItems: 'center',
     },
 });

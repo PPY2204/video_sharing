@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types';
-import { cacheService } from '@/services/cacheService';
+import { cacheService } from '@/services/cache.service';
 
 interface AuthState {
   user: User | null;

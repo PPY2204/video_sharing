@@ -477,6 +477,19 @@ export const searchVideos = async (query: string) => {
 };
 
 /**
+ * Get trending videos
+ */
+export const getTrendingVideos = async (
+  limit: number = 10
+): Promise<Video[]> => {
+  await delay(500);
+  // Sort by views + likes for trending
+  return MOCK_VIDEOS.sort(
+    (a, b) => b.views + b.likes - (a.views + a.likes)
+  ).slice(0, limit);
+};
+
+/**
  * Toggle like video
  */
 export const toggleLikeVideo = async (videoId: string): Promise<boolean> => {

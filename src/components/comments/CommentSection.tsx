@@ -1,287 +1,111 @@
-/**
- * CommentSection Component
- * Video Sharing App - Team 10
- * Display and manage comments with replies, likes, delete functionality
- */
-
-import type { Comment, User } from '@/types/app.types';
+import { CommentSkeleton } from '@/components/skeletons';
+import { useComments } from '@/hooks';
+import type { User } from '@/types/app.types';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import CommentItem from './CommentItem';
 
 interface CommentSectionProps {
     videoId: string;
-    comments: Comment[];
     currentUser: User | null;
-    isLoading?: boolean;
-    onAddComment: (content: string, parentId?: string) => Promise<void>;
-    onDeleteComment: (commentId: string) => Promise<void>;
-    onLikeComment: (commentId: string) => void;
-    onLoadMore?: () => void;
-    hasMore?: boolean;
 }
 
-export const CommentSection: React.FC<CommentSectionProps> = ({
-    videoId,
-    comments,
-    currentUser,
-    isLoading = false,
-    onAddComment,
-    onDeleteComment,
-    onLikeComment,
-    onLoadMore,
-    hasMore = false,
-}) => {
+export const CommentSection: React.FC<CommentSectionProps> = ({ videoId, currentUser }) => {
+    const { comments, isLoading, hasMore, loadMore, addComment } = useComments(videoId);
     const [newComment, setNewComment] = useState('');
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmitComment = async () => {
+    const handleSubmitComment = useCallback(async () => {
         if (!newComment.trim() || !currentUser) return;
-
         try {
             setSubmitting(true);
-            await onAddComment(newComment.trim(), replyingTo || undefined);
+            await addComment(newComment.trim(), replyingTo || undefined);
             setNewComment('');
             setReplyingTo(null);
         } catch (error) {
-            if (__DEV__) {
-                console.error('Submit comment error:', error);
-            }
-            Alert.alert('Error', 'Failed to post comment. Please try again.');
+            Alert.alert('Error', 'Failed to post comment');
         } finally {
             setSubmitting(false);
         }
-    };
+    }, [newComment, currentUser, replyingTo, addComment]);
 
-    const handleDeleteComment = (commentId: string) => {
-        Alert.alert(
-            'Delete Comment',
-            'Are you sure you want to delete this comment?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => onDeleteComment(commentId),
-                },
-            ]
-        );
-    };
+    const handleLikeComment = useCallback((commentId: string) => console.log('Like:', commentId), []);
+    const handleReplyComment = useCallback((commentId: string) => setReplyingTo(commentId), []);
+    const cancelReply = useCallback(() => setReplyingTo(null), []);
 
-    const formatTimeAgo = (dateString: string): string => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    const renderComment = useCallback(({ item }: { item: typeof comments[0] }) => (
+        <CommentItem comment={item} onLike={handleLikeComment} onReply={handleReplyComment} />
+    ), [handleLikeComment, handleReplyComment, comments]);
 
-        if (diffInSeconds < 60) return 'Just now';
-        if (diffInSeconds < 3600)
-            return `${Math.floor(diffInSeconds / 60)}m ago`;
-        if (diffInSeconds < 86400)
-            return `${Math.floor(diffInSeconds / 3600)}h ago`;
-        if (diffInSeconds < 604800)
-            return `${Math.floor(diffInSeconds / 86400)}d ago`;
-        return `${Math.floor(diffInSeconds / 604800)}w ago`;
-    };
+    const keyExtractor = useCallback((item: typeof comments[0]) => item.id, []);
 
-    const renderComment = ({ item }: { item: Comment }) => {
-        const isOwner = currentUser?.id === item.user.id;
+    const ListEmptyComponent = useCallback(() => (
+        <View style={styles.emptyContainer}>
+            <Ionicons name="chatbubble-outline" size={48} color="#6B7280" />
+            <Text style={styles.emptyText}>No comments yet</Text>
+            <Text style={styles.emptySubtext}>Be the first to comment!</Text>
+        </View>
+    ), []);
 
-        return (
-            <View className="py-3 border-b border-gray-800">
-                {/* Comment Header */}
-                <View className="flex-row items-start">
-                    {/* Avatar */}
-                    <View className="w-9 h-9 rounded-full bg-gray-700 mr-3" />
-
-                    {/* Comment Content */}
-                    <View className="flex-1">
-                        {/* Username & Time */}
-                        <View className="flex-row items-center mb-1">
-                            <Text className="text-white font-semibold mr-2">
-                                {item.user.username}
-                            </Text>
-                            <Text className="text-gray-400 text-xs">
-                                {formatTimeAgo(item.createdAt)}
-                            </Text>
-                        </View>
-
-                        {/* Comment Text */}
-                        <Text className="text-white mb-2">{item.text}</Text>
-
-                        {/* Action Buttons */}
-                        <View className="flex-row items-center space-x-4">
-                            {/* Like */}
-                            <TouchableOpacity
-                                onPress={() => onLikeComment(item.id)}
-                                className="flex-row items-center mr-4"
-                            >
-                                <Ionicons
-                                    name={item.isLiked ? 'heart' : 'heart-outline'}
-                                    size={16}
-                                    color={item.isLiked ? '#FF3B5C' : '#9CA3AF'}
-                                />
-                                <Text
-                                    className={`ml-1 text-xs ${item.isLiked ? 'text-primary' : 'text-gray-400'
-                                        }`}
-                                >
-                                    {item.likes > 0 ? item.likes : ''}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {/* Reply */}
-                            <TouchableOpacity
-                                onPress={() => setReplyingTo(item.id)}
-                                className="mr-4"
-                            >
-                                <Text className="text-gray-400 text-xs">Reply</Text>
-                            </TouchableOpacity>
-
-                            {/* Delete (only for comment owner) */}
-                            {isOwner && (
-                                <TouchableOpacity onPress={() => handleDeleteComment(item.id)}>
-                                    <Text className="text-red-500 text-xs">Delete</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        {/* Replies */}
-                        {item.replies && item.replies.length > 0 && (
-                            <View className="mt-3 pl-4 border-l-2 border-gray-700">
-                                {item.replies.map((reply) => (
-                                    <View key={reply.id} className="mb-2">
-                                        <View className="flex-row items-center mb-1">
-                                            <Text className="text-white font-semibold text-sm mr-2">
-                                                {reply.user.username}
-                                            </Text>
-                                            <Text className="text-gray-400 text-xs">
-                                                {formatTimeAgo(reply.createdAt)}
-                                            </Text>
-                                        </View>
-                                        <Text className="text-white text-sm">{reply.text}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Replying Indicator */}
-                {replyingTo === item.id && (
-                    <View className="mt-2 bg-gray-800 p-2 rounded">
-                        <Text className="text-gray-400 text-xs">
-                            Replying to @{item.user.username}
-                        </Text>
-                    </View>
-                )}
-            </View>
-        );
-    };
+    const ListFooterComponent = useCallback(() => hasMore ? (
+        <TouchableOpacity style={styles.loadMore} onPress={loadMore}><Text style={styles.loadMoreText}>Load more</Text></TouchableOpacity>
+    ) : null, [hasMore, loadMore]);
 
     return (
-        <View className="flex-1 bg-black">
-            {/* Header */}
-            <View className="px-4 py-3 border-b border-gray-800">
-                <Text className="text-white font-bold text-lg">
-                    Comments {comments.length > 0 && `(${comments.length})`}
-                </Text>
-            </View>
-
-            {/* Comments List */}
-            {isLoading ? (
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color="#FF3B5C" />
-                </View>
+        <View style={styles.container}>
+            {isLoading && comments.length === 0 ? (
+                <View style={styles.loadingContainer}>{[...Array(5)].map((_, i) => <CommentSkeleton key={i} />)}</View>
             ) : (
-                <FlatList
-                    data={comments}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderComment}
-                    contentContainerStyle={{ paddingHorizontal: 16 }}
-                    ListEmptyComponent={
-                        <View className="items-center justify-center py-12">
-                            <Ionicons name="chatbubble-outline" size={48} color="#6B7280" />
-                            <Text className="text-gray-400 mt-4">No comments yet</Text>
-                            <Text className="text-gray-500 text-sm mt-1">
-                                Be the first to comment!
-                            </Text>
-                        </View>
-                    }
-                    onEndReached={hasMore ? onLoadMore : undefined}
-                    onEndReachedThreshold={0.5}
-                    ListFooterComponent={
-                        hasMore ? (
-                            <View className="py-4 items-center">
-                                <ActivityIndicator size="small" color="#FF3B5C" />
-                            </View>
-                        ) : null
-                    }
-                />
-            )}
-
-            {/* Comment Input */}
-            {currentUser ? (
-                <View className="px-4 py-3 border-t border-gray-800 flex-row items-center">
-                    {/* Avatar */}
-                    <View className="w-8 h-8 rounded-full bg-gray-700 mr-3" />
-
-                    {/* Input */}
-                    <TextInput
-                        value={newComment}
-                        onChangeText={setNewComment}
-                        placeholder={
-                            replyingTo ? 'Write a reply...' : 'Add a comment...'
-                        }
-                        placeholderTextColor="#6B7280"
-                        className="flex-1 bg-gray-900 text-white px-4 py-2 rounded-full"
-                        multiline
-                        maxLength={500}
+                <>
+                    <FlatList
+                        data={comments}
+                        renderItem={renderComment}
+                        keyExtractor={keyExtractor}
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={ListEmptyComponent}
+                        ListFooterComponent={ListFooterComponent}
                     />
-
-                    {/* Cancel Reply Button */}
                     {replyingTo && (
-                        <TouchableOpacity
-                            onPress={() => setReplyingTo(null)}
-                            className="ml-2"
-                        >
-                            <Ionicons name="close-circle" size={24} color="#6B7280" />
-                        </TouchableOpacity>
+                        <View style={styles.replyingBanner}>
+                            <Text style={styles.replyingText}>Replying to comment</Text>
+                            <TouchableOpacity onPress={cancelReply}><Ionicons name="close" size={20} color="#9CA3AF" /></TouchableOpacity>
+                        </View>
                     )}
-
-                    {/* Submit Button */}
-                    <TouchableOpacity
-                        onPress={handleSubmitComment}
-                        disabled={!newComment.trim() || submitting}
-                        className="ml-2"
-                    >
-                        {submitting ? (
-                            <ActivityIndicator size="small" color="#FF3B5C" />
-                        ) : (
-                            <Ionicons
-                                name="send"
-                                size={24}
-                                color={newComment.trim() ? '#FF3B5C' : '#6B7280'}
-                            />
+                    <View style={styles.inputContainer}>
+                        {!currentUser ? (<Text style={styles.loginText}>Log in to comment</Text>) : (
+                            <View style={styles.inputRow}>
+                                <View style={styles.avatar} />
+                                <TextInput style={styles.input} placeholder="Add a comment..." placeholderTextColor="#9CA3AF" value={newComment} onChangeText={setNewComment} multiline maxLength={500} editable={!submitting} />
+                                <TouchableOpacity onPress={handleSubmitComment} disabled={!newComment.trim() || submitting} style={[styles.sendButton, (!newComment.trim() || submitting) && styles.sendButtonDisabled]}>
+                                    {submitting ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="send" size={20} color="#FFF" />}
+                                </TouchableOpacity>
+                            </View>
                         )}
-                    </TouchableOpacity>
-                </View>
-            ) : (
-                <View className="px-4 py-4 border-t border-gray-800">
-                    <Text className="text-gray-400 text-center">
-                        Sign in to leave a comment
-                    </Text>
-                </View>
+                    </View>
+                </>
             )}
         </View>
     );
 };
 
-export default CommentSection;
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#000' },
+    loadingContainer: { padding: 16 },
+    listContent: { paddingHorizontal: 16, paddingVertical: 8 },
+    emptyContainer: { paddingVertical: 48, alignItems: 'center' },
+    emptyText: { color: '#9CA3AF', marginTop: 12, fontSize: 16 },
+    emptySubtext: { color: '#6B7280', fontSize: 14, marginTop: 4 },
+    loadMore: { paddingVertical: 12, alignItems: 'center' },
+    loadMoreText: { color: '#FF3B5C', fontSize: 14, fontWeight: '500' },
+    replyingBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#1F2937', borderBottomWidth: 1, borderBottomColor: '#374151' },
+    replyingText: { color: '#9CA3AF', fontSize: 14 },
+    inputContainer: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#111827', borderTopWidth: 1, borderTopColor: '#1F2937' },
+    loginText: { color: '#9CA3AF', textAlign: 'center', paddingVertical: 8 },
+    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#374151' },
+    input: { flex: 1, backgroundColor: '#1F2937', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, color: '#FFF', fontSize: 14 },
+    sendButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#FF3B5C' },
+    sendButtonDisabled: { backgroundColor: '#374151' },
+});

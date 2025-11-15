@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Image, ImageSourcePropType, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
     onPress?: () => void;
 };
 
-export default function StoryAvatar({ name, uri, isYou = false, online = false, onPress }: Props) {
+const StoryAvatar = memo<Props>(({ name, uri, isYou = false, online = false, onPress }) => {
     return (
         <TouchableOpacity style={styles.container} activeOpacity={0.8} onPress={onPress}>
             <View style={[styles.avatarWrapper, online && styles.onlineRing]}>
@@ -27,7 +27,11 @@ export default function StoryAvatar({ name, uri, isYou = false, online = false, 
             </Text>
         </TouchableOpacity>
     );
-}
+});
+
+StoryAvatar.displayName = 'StoryAvatar';
+
+export default StoryAvatar;
 
 const AVATAR_SIZE = 56;
 const OVERLAY_SIZE = 22;

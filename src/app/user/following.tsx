@@ -4,82 +4,25 @@
  * Accessible from user profile page
  */
 
+import { supabaseService } from "@/services/supabase.service";
+import type { User as UserType } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Image,
-    ImageSourcePropType,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface User {
-    id: string;
-    name: string;
-    username?: string;
-    avatar: ImageSourcePropType;
+interface UserItem extends UserType {
     isFollowing: boolean;
 }
-
-// Mock data
-const MOCK_FOLLOWING: User[] = [
-    {
-        id: "1",
-        name: "Kiran Glaucus",
-        avatar: require("@/assets/images/home/You.png"),
-        isFollowing: true,
-    },
-    {
-        id: "2",
-        name: "Sally Rooney",
-        avatar: require("@/assets/images/home/Julia.png"),
-        isFollowing: true,
-    },
-    {
-        id: "3",
-        name: "Marie Franco",
-        avatar: require("@/assets/images/home/William.png"),
-        isFollowing: true,
-    },
-    {
-        id: "4",
-        name: "Jena Nguyen",
-        avatar: require("@/assets/images/home/Peter.png"),
-        isFollowing: true,
-    },
-    {
-        id: "5",
-        name: "Kristin Watson",
-        avatar: require("@/assets/images/home/Perfect-lady.png"),
-        isFollowing: true,
-    },
-];
-
-const MOCK_SUGGESTIONS: User[] = [
-    {
-        id: "s1",
-        name: "Bobby Sandoval",
-        avatar: require("@/assets/images/search/Laura.png"),
-        isFollowing: false,
-    },
-    {
-        id: "s2",
-        name: "Jennie Ponce",
-        avatar: require("@/assets/images/search/Lina.png"),
-        isFollowing: false,
-    },
-    {
-        id: "s3",
-        name: "Anja O'Connor",
-        avatar: require("@/assets/images/search/Cris.png"),
-        isFollowing: false,
-    },
-];
 
 export default function UserFollowingScreen() {
     const router = useRouter();
@@ -91,8 +34,36 @@ export default function UserFollowingScreen() {
     const initialTab = (params.tab as "followers" | "following") || "following";
 
     const [activeTab, setActiveTab] = useState<"followers" | "following">(initialTab);
-    const [following, setFollowing] = useState(MOCK_FOLLOWING);
-    const [suggestions, setSuggestions] = useState(MOCK_SUGGESTIONS);
+    const [following, setFollowing] = useState<UserItem[]>([]);
+    const [suggestions, setSuggestions] = useState<UserItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Load users from Supabase
+    useEffect(() => {
+        const loadUsers = async () => {
+            setIsLoading(true);
+            try {
+                const data = await supabaseService.users.getUsers();
+                const usersWithFollow: UserItem[] = data.map(user => ({
+                    ...user,
+                    isFollowing: Math.random() > 0.5, // Random for demo
+                }));
+
+                // Split into following and suggestions
+                const followingUsers = usersWithFollow.filter(u => u.isFollowing).slice(0, 10);
+                const suggestionUsers = usersWithFollow.filter(u => !u.isFollowing).slice(0, 5);
+
+                setFollowing(followingUsers);
+                setSuggestions(suggestionUsers);
+            } catch (error) {
+                console.error('Failed to load users:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadUsers();
+    }, []);
 
     const handleToggleFollow = (userId: string, isSuggestion: boolean = false) => {
         if (isSuggestion) {
@@ -118,56 +89,72 @@ export default function UserFollowingScreen() {
         setSuggestions((prev) => prev.filter((user) => user.id !== userId));
     };
 
-    const renderUserItem = ({ item, isSuggestion = false }: { item: User; isSuggestion?: boolean }) => (
-        <View style={styles.userItem}>
-            <TouchableOpacity
-                style={styles.userInfo}
-                onPress={() => router.push({
-                    pathname: "/user/[id]",
-                    params: { id: item.id, name: item.name }
-                })}
-            >
-                <Image source={item.avatar} style={styles.avatar} />
-                <Text style={styles.userName}>{item.name}</Text>
-            </TouchableOpacity>
+    const renderUserItem = ({ item, isSuggestion = false }: { item: UserItem; isSuggestion?: boolean }) => {
+        const avatarSource = typeof item.profileImage === 'string'
+            ? { uri: item.profileImage }
+            : item.profileImage;
 
-            <View style={styles.actions}>
+        return (
+            <View style={styles.userItem}>
                 <TouchableOpacity
-                    style={[
-                        styles.followButton,
-                        item.isFollowing && styles.followingButton,
-                    ]}
-                    onPress={() => handleToggleFollow(item.id, isSuggestion)}
+                    style={styles.userInfo}
+                    onPress={() => router.push({
+                        pathname: "/user/[id]",
+                        params: { id: item.id, name: item.username }
+                    })}
                 >
-                    <Text
-                        style={[
-                            styles.followButtonText,
-                            item.isFollowing && styles.followingButtonText,
-                        ]}
-                    >
-                        {item.isFollowing ? "Following" : "Follow"}
-                    </Text>
+                    <Image source={avatarSource} style={styles.avatar} />
+                    <Text style={styles.userName}>{item.username}</Text>
                 </TouchableOpacity>
 
-                {!isSuggestion && (
-                    <TouchableOpacity style={styles.moreButton}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="#666" />
-                    </TouchableOpacity>
-                )}
-
-                {isSuggestion && (
+                <View style={styles.actions}>
                     <TouchableOpacity
-                        style={styles.closeButton}
-                        onPress={() => handleRemoveSuggestion(item.id)}
+                        style={[
+                            styles.followButton,
+                            item.isFollowing && styles.followingButton,
+                        ]}
+                        onPress={() => handleToggleFollow(item.id, isSuggestion)}
                     >
-                        <Ionicons name="close" size={20} color="#666" />
+                        <Text
+                            style={[
+                                styles.followButtonText,
+                                item.isFollowing && styles.followingButtonText,
+                            ]}
+                        >
+                            {item.isFollowing ? "Following" : "Follow"}
+                        </Text>
                     </TouchableOpacity>
-                )}
-            </View>
-        </View>
-    );
 
-    const renderSuggestionItem = ({ item }: { item: User }) => renderUserItem({ item, isSuggestion: true });
+                    {!isSuggestion && (
+                        <TouchableOpacity style={styles.moreButton}>
+                            <Ionicons name="ellipsis-vertical" size={20} color="#666" />
+                        </TouchableOpacity>
+                    )}
+
+                    {isSuggestion && (
+                        <TouchableOpacity
+                            style={styles.closeButton}
+                            onPress={() => handleRemoveSuggestion(item.id)}
+                        >
+                            <Ionicons name="close" size={20} color="#666" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+        );
+    };
+
+    const renderSuggestionItem = ({ item }: { item: UserItem }) => renderUserItem({ item, isSuggestion: true });
+
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#FF3B5C" />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
@@ -378,5 +365,10 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#3897F0",
         fontWeight: "500",
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

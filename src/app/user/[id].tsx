@@ -4,67 +4,30 @@
  * Accessed when viewing someone else's profile
  */
 
+import { useUserProfile } from "@/hooks/useUsers";
+import { supabaseService } from "@/services/supabase.service";
+import type { Video } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     Image,
-    ImageSourcePropType,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 const ITEM_SIZE = (width - 6) / 3;
 
-interface VideoItem {
-    id: string;
-    thumbnail: ImageSourcePropType;
-    views: string;
+interface VideoItem extends Video {
     isLiked?: boolean;
 }
-
-// Mock data
-const MOCK_VIDEOS: VideoItem[] = [
-    {
-        id: "1",
-        thumbnail: require("@/assets/images/search/container-43.png"),
-        views: "1.5M",
-    },
-    {
-        id: "2",
-        thumbnail: require("@/assets/images/search/container-44.png"),
-        views: "1.5M",
-        isLiked: true,
-    },
-    {
-        id: "3",
-        thumbnail: require("@/assets/images/search/container-40.png"),
-        views: "1.6M",
-        isLiked: true,
-    },
-    {
-        id: "4",
-        thumbnail: require("@/assets/images/search/container-38.png"),
-        views: "1.5M",
-    },
-    {
-        id: "5",
-        thumbnail: require("@/assets/images/search/container-41.png"),
-        views: "1.5M",
-        isLiked: true,
-    },
-    {
-        id: "6",
-        thumbnail: require("@/assets/images/search/container-45.png"),
-        views: "1.5M",
-    },
-];
 
 const SUGGESTED_USERS = [
     {
@@ -88,42 +51,87 @@ export default function UserProfileScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
 
-    const userId = params.id || "1";
-    const userName = params.name || "Kiran Glaucus";
-    const userBio = params.bio || "I love a colorful life ❤️❤️❤️";
+    const userId = (params.id as string) || "1";
+
+    // Use real user data from Supabase
+    const { user, isLoading: userLoading } = useUserProfile(userId);
 
     const [isFollowing, setIsFollowing] = useState(false);
     const [activeTab, setActiveTab] = useState<"videos" | "liked">("liked");
-    const [videos] = useState(MOCK_VIDEOS);
+    const [videos, setVideos] = useState<VideoItem[]>([]);
+    const [videosLoading, setVideosLoading] = useState(true);
     const [suggestions, setSuggestions] = useState(SUGGESTED_USERS);
 
+    // Load user videos
+    useEffect(() => {
+        const loadVideos = async () => {
+            if (!userId) return;
+
+            setVideosLoading(true);
+            try {
+                const data = await supabaseService.videos.getVideosByUserId(userId);
+                setVideos(data);
+            } catch (error) {
+                console.error('Failed to load videos:', error);
+            } finally {
+                setVideosLoading(false);
+            }
+        };
+
+        loadVideos();
+    }, [userId]);
+
+    const userName = user?.username || "User";
+    const userBio = user?.bio || "";
     const stats = {
-        following: "203",
-        followers: "628",
-        likes: "2634",
+        following: user?.following.toString() || "0",
+        followers: user?.followers.toString() || "0",
+        likes: user?.likes.toString() || "0",
+    };
+
+    const formatViews = (views: number) => {
+        if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
+        if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
+        return views.toString();
     };
 
     const handleRemoveSuggestion = (id: string) => {
         setSuggestions((prev) => prev.filter((user) => user.id !== id));
     };
 
-    const renderVideoItem = ({ item }: { item: VideoItem }) => (
-        <TouchableOpacity
-            style={styles.videoItem}
-            onPress={() => router.push(`/video/${item.id}`)}
-        >
-            <Image source={item.thumbnail} style={styles.videoThumbnail} />
-            <View style={styles.videoOverlay}>
-                <Ionicons name="play" size={16} color="#fff" />
-                <Text style={styles.viewCount}>{item.views} views</Text>
-            </View>
-            {item.isLiked && (
-                <View style={styles.likedBadge}>
-                    <Ionicons name="heart" size={12} color="#fff" />
+    const renderVideoItem = ({ item }: { item: VideoItem }) => {
+        const thumbnailSource = typeof item.thumbnail === 'string'
+            ? { uri: item.thumbnail }
+            : item.thumbnail;
+
+        return (
+            <TouchableOpacity
+                style={styles.videoItem}
+                onPress={() => router.push(`/video/${item.id}`)}
+            >
+                <Image source={thumbnailSource} style={styles.videoThumbnail} />
+                <View style={styles.videoOverlay}>
+                    <Ionicons name="play" size={16} color="#fff" />
+                    <Text style={styles.viewCount}>{formatViews(item.views)} views</Text>
                 </View>
-            )}
-        </TouchableOpacity>
-    );
+                {item.isLiked && (
+                    <View style={styles.likedBadge}>
+                        <Ionicons name="heart" size={12} color="#fff" />
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
+    };
+
+    if (userLoading || videosLoading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#FF3B5C" />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
@@ -541,5 +549,10 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(255, 59, 92, 0.9)",
         alignItems: "center",
         justifyContent: "center",
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

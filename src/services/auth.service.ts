@@ -11,7 +11,7 @@ import type {
   User,
 } from "@/types/app.types";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiService } from "./restApi";
+import { apiService } from "../api/restApi";
 
 const TOKEN_KEY = "@video_app_token";
 const REFRESH_TOKEN_KEY = "@video_app_refresh_token";
