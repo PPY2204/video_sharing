@@ -21,24 +21,22 @@ Tài liệu này hướng dẫn chi tiết dành cho lập trình viên Frontend
 
 Dự án sử dụng stack React Native hiện đại, tích hợp chặt chẽ với hệ sinh thái Expo:
 
-| Công nghệ                     | Mô tả                                               |
-| ----------------------------- | --------------------------------------------------- |
-| **Expo SDK 51+**              | Framework cho mobile app development                |
-| **React Native + TypeScript** | Ngôn ngữ và UI framework chính                      |
-| **Expo Router**               | Routing system dựa trên filesystem                  |
-| **Zustand**                   | State management (lightweight alternative to Redux) |
-| **Tanstack Query**            | Data fetching, caching, và sync với API             |
-| **Axios**                     | HTTP client                                         |
-| **Zod**                       | Schema validation                                   |
-| **Reanimated 3 / Moti**       | Animation library                                   |
-| **TailwindCSS (NativeWind)**  | Styling framework                                   |
-| **React Hook Form**           | Form handling                                       |
-| **npm**                       | Package manager chính thức                          |
+| Công nghệ                     | Mô tả                                             |
+| ----------------------------- | ------------------------------------------------- |
+| **Expo SDK 51+**              | Framework cho mobile app development              |
+| **React Native + TypeScript** | Ngôn ngữ và UI framework chính                    |
+| **Expo Router 54.0.2**        | Routing system dựa trên filesystem                |
+| **Zustand**                   | State management (lightweight alternative to) API |
+| **Axios**                     | HTTP client                                       |
+| **TailwindCSS (NativeWind)**  | Styling framework                                 |
+| **React Hook Form**           | Form handling                                     |
+| **npm 10.8.2**                | Package manager chính thức                        |
 
 ## Kiến trúc hệ thống
 
 ### 1. Cấu trúc thư mục tổng thể
 
+```
 src/
 ├── app/ # Expo Router
 │ ├── (tabs)/
@@ -98,6 +96,7 @@ src/
 ├── icons/
 ├── fonts/
 └── images/
+```
 
 ### 2. Triết lý kiến trúc
 
