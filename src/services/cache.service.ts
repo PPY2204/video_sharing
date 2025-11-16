@@ -1,43 +1,41 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const CACHE_KEYS = {
+export const CACHE_KEYS = {
   TRENDING: "trending_data",
   VIDEOS: "videos_data",
   USER_PROFILE: "user_profile",
   AUDIOS: "audios_data",
   COMMENTS: "comments_data",
+  FILTERS: "filters_data",
+  VIDEO_LIST: "video_list",
 } as const;
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-interface CacheItem {
-  data: any;
+interface CacheItem<T> {
+  data: T;
   timestamp: number;
 }
 
 export const cacheService = {
-  // Set cache với timestamp để quản lý expiration
-  set: async (key: string, data: any): Promise<void> => {
+  set: async <T>(key: string, data: T): Promise<void> => {
     try {
-      const cacheItem: CacheItem = {
+      const cacheItem: CacheItem<T> = {
         data,
         timestamp: Date.now(),
       };
       await AsyncStorage.setItem(key, JSON.stringify(cacheItem));
-    } catch (error) {
-      if (__DEV__) {
-        console.error("Cache set error:", error);
-      }
+    } catch {
+      // Silent fail - cache is not critical
     }
   },
 
-  // Get cache và tự động xóa nếu hết hạn
-  get: async (key: string): Promise<any> => {
+  get: async <T>(key: string): Promise<T | null> => {
     try {
       const cached = await AsyncStorage.getItem(key);
       if (!cached) return null;
 
-      const cacheItem: CacheItem = JSON.parse(cached);
+      const cacheItem: CacheItem<T> = JSON.parse(cached);
       const isExpired = Date.now() - cacheItem.timestamp > CACHE_DURATION;
 
       if (isExpired) {
@@ -46,33 +44,66 @@ export const cacheService = {
       }
 
       return cacheItem.data;
-    } catch (error) {
-      if (__DEV__) {
-        console.error("Cache get error:", error);
-      }
+    } catch {
       return null;
     }
   },
 
-  // Xóa cache cụ thể khi có data thay đổi
   remove: async (key: string): Promise<void> => {
     try {
       await AsyncStorage.removeItem(key);
-    } catch (error) {
-      if (__DEV__) {
-        console.error("Cache remove error:", error);
-      }
+    } catch {
+      // Silent fail
     }
   },
 
-  // Clear all cache khi user logout
   clearAll: async (): Promise<void> => {
     try {
       await AsyncStorage.clear();
-    } catch (error) {
-      if (__DEV__) {
-        console.error("Cache clear error:", error);
+    } catch {
+      // Silent fail
+    }
+  },
+
+  // Cache multiple items at once
+  setMultiple: async <T>(
+    items: Array<{ key: string; data: T }>
+  ): Promise<void> => {
+    try {
+      const pairs = items.map(({ key, data }) => {
+        const cacheItem: CacheItem<T> = {
+          data,
+          timestamp: Date.now(),
+        };
+        return [key, JSON.stringify(cacheItem)] as [string, string];
+      });
+      await AsyncStorage.multiSet(pairs);
+    } catch {
+      // Silent fail
+    }
+  },
+
+  // Get multiple items at once
+  getMultiple: async <T>(keys: string[]): Promise<Map<string, T | null>> => {
+    try {
+      const pairs = await AsyncStorage.multiGet(keys);
+      const result = new Map<string, T | null>();
+
+      for (const [key, value] of pairs) {
+        if (!value) {
+          result.set(key, null);
+          continue;
+        }
+
+        const cacheItem: CacheItem<T> = JSON.parse(value);
+        const isExpired = Date.now() - cacheItem.timestamp > CACHE_DURATION;
+
+        result.set(key, isExpired ? null : cacheItem.data);
       }
+
+      return result;
+    } catch {
+      return new Map();
     }
   },
 };

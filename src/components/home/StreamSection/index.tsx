@@ -1,7 +1,8 @@
-import { MOCK_STREAMS } from "@/data";
+import { supabaseService } from "@/services/supabase.service";
 import type { StreamItem } from "@/types";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     Image,
@@ -16,18 +17,31 @@ const { width } = Dimensions.get("window");
 const cardWidth = Math.round(width * 0.56);
 
 export default function StreamSection() {
+    const [streams, setStreams] = useState<StreamItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadStreams = async () => {
+            try {
+                const data = await supabaseService.streams.getLiveStreams();
+                setStreams(data);
+            } catch (error) {
+                setStreams([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadStreams();
+    }, []);
     const renderStreamItem = ({ item }: { item: StreamItem }) => (
         <TouchableOpacity style={styles.streamCard} activeOpacity={0.9}>
             <ImageBackground
-                source={item.image}
+                source={typeof item.image === "string" ? { uri: item.image } : item.image}
                 style={styles.streamImage}
                 imageStyle={styles.imageStyle}
             >
-                {item.isLive && (
-                    <View style={styles.liveBadge}>
-                        <Text style={styles.liveText}>LIVE</Text>
-                    </View>
-                )}
+                
                 <View style={styles.streamOverlay}>
                     <View style={styles.streamInfo}>
                         <Text style={styles.streamTitle} numberOfLines={1}>
@@ -35,11 +49,31 @@ export default function StreamSection() {
                         </Text>
                         <Text style={styles.streamViews}>{item.views} viewers</Text>
                     </View>
-                    <Image source={item.avatar} style={styles.streamAvatar} />
+                    {item.avatar && (
+                        <Image
+                            source={typeof item.avatar === "string" ? { uri: item.avatar } : item.avatar}
+                            style={styles.streamAvatar}
+                        />
+                    )}
                 </View>
             </ImageBackground>
         </TouchableOpacity>
     );
+
+    if (isLoading) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Streaming</Text>
+                </View>
+                <ActivityIndicator size="small" color="#888" style={{ marginTop: 20 }} />
+            </View>
+        );
+    }
+
+    if (streams.length === 0) {
+        return null; // Hide section if no live streams
+    }
 
     return (
         <View style={styles.container}>
@@ -50,7 +84,7 @@ export default function StreamSection() {
                 </TouchableOpacity>
             </View>
             <FlatList
-                data={MOCK_STREAMS}
+                data={streams}
                 renderItem={renderStreamItem}
                 keyExtractor={(item) => item.id}
                 horizontal
@@ -68,7 +102,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     sectionHeader: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
@@ -85,7 +119,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     listContent: {
-        paddingHorizontal: 8,
+        paddingHorizontal: 14,
     },
     separator: {
         width: 12,
@@ -133,14 +167,14 @@ const styles = StyleSheet.create({
     },
     streamTitle: {
         color: "#fff",
-        fontWeight: "700",
+        fontWeight: "400",
         fontSize: 15,
         marginBottom: 4,
     },
     streamViews: {
         color: "#fff",
         fontSize: 12,
-        fontWeight: "500",
+        fontWeight: "300",
         opacity: 0.95,
     },
     streamAvatar: {

@@ -35,7 +35,7 @@ export default function TrendingSection() {
             ? typeof item.user.profileImage === 'string'
                 ? { uri: item.user.profileImage }
                 : item.user.profileImage
-            : { uri: 'https://via.placeholder.com/40' };
+            : require('@/assets/images/home/You.png');
 
         return (
             <TouchableOpacity
@@ -72,7 +72,7 @@ export default function TrendingSection() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.sectionTitle}>Top trending</Text>
+                <Text style={styles.sectionTitle}>Top Trending</Text>
                 <TouchableOpacity onPress={() => router.push("/(tabs)/trending")}>
                     <Text style={styles.viewMore}>View more</Text>
                 </TouchableOpacity>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         marginBottom: 12,
     },
     sectionTitle: {
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
         fontWeight: "500",
     },
     listContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
     },
     separator: {
         width: 12,
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 15,
-        fontWeight: "700",
+        fontWeight: "400",
         color: "#fff",
         marginBottom: 6,
     },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     views: {
         fontSize: 12,
         color: "#fff",
-        fontWeight: "500",
+        fontWeight: "300",
     },
     loadingContainer: {
         paddingHorizontal: 16,

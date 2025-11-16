@@ -6,7 +6,7 @@
 
 import { useUserProfile } from "@/hooks/useUsers";
 import { supabaseService } from "@/services/supabase.service";
-import type { Video } from "@/types";
+import type { User, Video } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -29,24 +29,6 @@ interface VideoItem extends Video {
     isLiked?: boolean;
 }
 
-const SUGGESTED_USERS = [
-    {
-        id: "s1",
-        name: "Flaura",
-        avatar: require("@/assets/images/home/You.png"),
-    },
-    {
-        id: "s2",
-        name: "Bobb",
-        avatar: require("@/assets/images/home/Julia.png"),
-    },
-    {
-        id: "s3",
-        name: "Kiddy",
-        avatar: require("@/assets/images/home/William.png"),
-    },
-];
-
 export default function UserProfileScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
@@ -60,7 +42,7 @@ export default function UserProfileScreen() {
     const [activeTab, setActiveTab] = useState<"videos" | "liked">("liked");
     const [videos, setVideos] = useState<VideoItem[]>([]);
     const [videosLoading, setVideosLoading] = useState(true);
-    const [suggestions, setSuggestions] = useState(SUGGESTED_USERS);
+    const [suggestions, setSuggestions] = useState<User[]>([]);
 
     // Load user videos
     useEffect(() => {
@@ -72,21 +54,38 @@ export default function UserProfileScreen() {
                 const data = await supabaseService.videos.getVideosByUserId(userId);
                 setVideos(data);
             } catch (error) {
-                console.error('Failed to load videos:', error);
             } finally {
                 setVideosLoading(false);
             }
         };
 
+        const loadSuggestedUsers = async () => {
+            try {
+                const users = await supabaseService.users.getUsers();
+                // Filter out current user and take first 3
+                const filtered = users.filter(u => u.id !== userId).slice(0, 3);
+                setSuggestions(filtered);
+            } catch (error) {
+                console.error('Failed to load suggested users:', error);
+            }
+        };
+
         loadVideos();
+        loadSuggestedUsers();
     }, [userId]);
+
+    const formatNumber = (num: number) => {
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+        return num.toString();
+    };
 
     const userName = user?.username || "User";
     const userBio = user?.bio || "";
     const stats = {
-        following: user?.following.toString() || "0",
-        followers: user?.followers.toString() || "0",
-        likes: user?.likes.toString() || "0",
+        following: formatNumber(user?.following || 0),
+        followers: formatNumber(user?.followers || 0),
+        likes: formatNumber(user?.likes || 0),
     };
 
     const formatViews = (views: number) => {
@@ -133,38 +132,59 @@ export default function UserProfileScreen() {
         );
     }
 
+    const displayVideos = activeTab === "videos" ? videos : videos.filter((v) => v.isLiked);
+
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             <FlatList
-                data={activeTab === "videos" ? videos.filter((v) => !v.isLiked) : videos.filter((v) => v.isLiked)}
+                data={displayVideos}
                 renderItem={renderVideoItem}
                 keyExtractor={(item) => item.id}
                 numColumns={3}
                 columnWrapperStyle={styles.videoRow}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Ionicons name={activeTab === "videos" ? "videocam-outline" : "heart-outline"} size={64} color="#E5E7EB" />
+                        <Text style={styles.emptyText}>
+                            {activeTab === "videos" ? "No videos yet" : "No liked videos yet"}
+                        </Text>
+                    </View>
+                }
                 ListHeaderComponent={
                     <>
                         {/* Header */}
                         <View style={styles.header}>
-                            <TouchableOpacity onPress={() => router.back()}>
-                                <Ionicons name="chevron-back" size={28} color="#000" />
+                            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+                                <Ionicons name="chevron-back" size={28} color="#111827" />
                             </TouchableOpacity>
-                            <TouchableOpacity>
-                                <Ionicons name="notifications-outline" size={26} color="#000" />
-                            </TouchableOpacity>
-                            <TouchableOpacity>
-                                <Ionicons name="ellipsis-vertical" size={24} color="#000" />
-                            </TouchableOpacity>
+                            <View style={styles.headerRight}>
+                                <TouchableOpacity activeOpacity={0.7} style={styles.iconButton}>
+                                    <Ionicons name="notifications-outline" size={24} color="#111827" />
+                                </TouchableOpacity>
+                                <TouchableOpacity activeOpacity={0.7} style={styles.iconButton}>
+                                    <Ionicons name="ellipsis-vertical" size={24} color="#111827" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
                         {/* Profile Info */}
                         <View style={styles.profileSection}>
                             <View style={styles.avatarContainer}>
                                 <Image
-                                    source={require("@/assets/images/home/You.png")}
+                                    source={
+                                        user?.profileImage && typeof user.profileImage === 'string'
+                                            ? { uri: user.profileImage }
+                                            : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }
+                                    }
                                     style={styles.avatar}
                                 />
+                                {user?.isVerified && (
+                                    <View style={styles.verifiedBadge}>
+                                        <Ionicons name="checkmark" size={14} color="#fff" />
+                                    </View>
+                                )}
                             </View>
 
                             <Text style={styles.userName}>{userName}</Text>
@@ -247,18 +267,27 @@ export default function UserProfileScreen() {
                                 </View>
 
                                 <View style={styles.suggestionsRow}>
-                                    {suggestions.map((user) => (
-                                        <View key={user.id} style={styles.suggestionCard}>
+                                    {suggestions.map((suggestedUser) => (
+                                        <View key={suggestedUser.id} style={styles.suggestionCard}>
                                             <TouchableOpacity
                                                 style={styles.removeButton}
-                                                onPress={() => handleRemoveSuggestion(user.id)}
+                                                onPress={() => handleRemoveSuggestion(suggestedUser.id)}
                                             >
                                                 <Ionicons name="close" size={16} color="#666" />
                                             </TouchableOpacity>
 
-                                            <Image source={user.avatar} style={styles.suggestionAvatar} />
+                                            {suggestedUser.profileImage && (
+                                                <Image 
+                                                    source={
+                                                        typeof suggestedUser.profileImage === 'string'
+                                                            ? { uri: suggestedUser.profileImage }
+                                                            : suggestedUser.profileImage
+                                                    } 
+                                                    style={styles.suggestionAvatar} 
+                                                />
+                                            )}
                                             <Text style={styles.suggestionName} numberOfLines={1}>
-                                                {user.name}
+                                                {suggestedUser.fullName || suggestedUser.username}
                                             </Text>
 
                                             <TouchableOpacity style={styles.followSmallBtn}>
@@ -279,7 +308,7 @@ export default function UserProfileScreen() {
                                 <Ionicons
                                     name="play"
                                     size={20}
-                                    color={activeTab === "videos" ? "#FF3B5C" : "#666"}
+                                    color={activeTab === "videos" ? "#EC4899" : "#6B7280"}
                                 />
                                 <Text
                                     style={[
@@ -298,7 +327,7 @@ export default function UserProfileScreen() {
                                 <Ionicons
                                     name="heart"
                                     size={20}
-                                    color={activeTab === "liked" ? "#FF3B5C" : "#666"}
+                                    color={activeTab === "liked" ? "#EC4899" : "#6B7280"}
                                 />
                                 <Text
                                     style={[
@@ -332,194 +361,230 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
     },
+    headerRight: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    iconButton: {
+        padding: 4,
+    },
     profileSection: {
         alignItems: "center",
-        paddingVertical: 20,
-        paddingHorizontal: 20,
+        paddingVertical: 16,
+        paddingHorizontal: 16,
     },
     avatarContainer: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        padding: 3,
-        backgroundColor: "#FF3B5C",
-        marginBottom: 12,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        marginBottom: 8,
+        position: 'relative',
     },
     avatar: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        borderWidth: 3,
-        borderColor: "#fff",
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        borderWidth: 2,
+        borderColor: "#E5E7EB",
+    },
+    verifiedBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#EC4899',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
     },
     userName: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: "700",
-        color: "#000",
-        marginBottom: 8,
+        color: "#111827",
+        marginBottom: 4,
     },
     userBio: {
-        fontSize: 14,
-        color: "#666",
+        fontSize: 13,
+        color: "#6B7280",
         textAlign: "center",
-        marginBottom: 20,
+        marginBottom: 16,
+        paddingHorizontal: 20,
     },
     statsContainer: {
         flexDirection: "row",
-        gap: 40,
-        marginBottom: 20,
+        justifyContent: "center",
+        gap: 20,
+        marginBottom: 16,
+        paddingHorizontal: 16,
     },
     statItem: {
         alignItems: "center",
+        minWidth: 60,
     },
     statValue: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: "700",
-        color: "#000",
+        color: "#111827",
     },
     statLabel: {
-        fontSize: 13,
-        color: "#666",
-        marginTop: 4,
+        fontSize: 12,
+        color: "#6B7280",
+        marginTop: 2,
     },
     actionButtons: {
         flexDirection: "row",
-        gap: 12,
+        gap: 8,
         width: "100%",
+        paddingHorizontal: 16,
     },
     followBtn: {
         flex: 1,
-        backgroundColor: "#FF3B5C",
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: "#EC4899",
+        paddingVertical: 10,
+        borderRadius: 4,
         alignItems: "center",
     },
     followingBtn: {
-        backgroundColor: "#f0f0f0",
+        backgroundColor: "#F3F4F6",
         borderWidth: 1,
-        borderColor: "#ddd",
+        borderColor: "#D1D5DB",
     },
     followBtnText: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: "600",
         color: "#fff",
     },
     followingBtnText: {
-        color: "#000",
+        color: "#111827",
     },
     messageBtn: {
         flex: 1,
-        backgroundColor: "#f0f0f0",
-        paddingVertical: 12,
-        borderRadius: 8,
+        backgroundColor: "#F3F4F6",
+        paddingVertical: 10,
+        borderRadius: 4,
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#ddd",
+        borderColor: "#D1D5DB",
     },
     messageBtnText: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: "600",
-        color: "#000",
+        color: "#111827",
     },
     suggestionsSection: {
-        paddingVertical: 20,
+        paddingVertical: 16,
         paddingHorizontal: 16,
         borderTopWidth: 1,
-        borderTopColor: "#f0f0f0",
+        borderTopColor: "#E5E7EB",
+        backgroundColor: "#FAFAFA",
     },
     suggestionsHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 16,
+        marginBottom: 12,
     },
     suggestionsTitle: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: "600",
-        color: "#000",
+        color: "#111827",
     },
     viewMoreText: {
-        fontSize: 14,
-        color: "#3897F0",
+        fontSize: 13,
+        color: "#EC4899",
         fontWeight: "500",
     },
     suggestionsRow: {
         flexDirection: "row",
-        gap: 12,
+        justifyContent: "space-between",
+        gap: 8,
     },
     suggestionCard: {
-        width: 110,
-        backgroundColor: "#fafafa",
-        borderRadius: 12,
-        padding: 16,
+        flex: 1,
+        maxWidth: (width - 48) / 3,
+        backgroundColor: "#fff",
+        borderRadius: 8,
+        padding: 12,
         alignItems: "center",
         position: "relative",
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
     },
     removeButton: {
         position: "absolute",
-        top: 8,
-        right: 8,
+        top: 4,
+        right: 4,
         zIndex: 1,
+        padding: 2,
     },
     suggestionAvatar: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        marginBottom: 8,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        marginBottom: 6,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
     },
     suggestionName: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: "600",
-        color: "#000",
-        marginBottom: 8,
+        color: "#111827",
+        marginBottom: 6,
         textAlign: "center",
     },
     followSmallBtn: {
-        backgroundColor: "#3897F0",
-        paddingHorizontal: 20,
-        paddingVertical: 6,
-        borderRadius: 6,
+        backgroundColor: "#3B82F6",
+        paddingHorizontal: 16,
+        paddingVertical: 4,
+        borderRadius: 4,
+        width: "100%",
     },
     followSmallBtnText: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: "600",
         color: "#fff",
+        textAlign: "center",
     },
     tabContainer: {
         flexDirection: "row",
         borderBottomWidth: 1,
-        borderBottomColor: "#f0f0f0",
-        marginBottom: 2,
+        borderBottomColor: "#E5E7EB",
+        marginBottom: 1,
     },
     tab: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 6,
-        paddingVertical: 16,
+        gap: 4,
+        paddingVertical: 12,
     },
     tabActive: {
         borderBottomWidth: 2,
-        borderBottomColor: "#FF3B5C",
+        borderBottomColor: "#111827",
     },
     tabText: {
-        fontSize: 15,
-        color: "#666",
+        fontSize: 14,
+        color: "#6B7280",
         fontWeight: "500",
     },
     tabTextActive: {
-        color: "#FF3B5C",
+        color: "#111827",
         fontWeight: "600",
     },
     videoRow: {
-        gap: 2,
+        gap: 1,
+        paddingHorizontal: 0,
     },
     videoItem: {
         width: ITEM_SIZE,
         height: ITEM_SIZE * 1.4,
         position: "relative",
-        marginBottom: 2,
+        marginBottom: 1,
     },
     videoThumbnail: {
         width: "100%",
@@ -554,5 +619,16 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 80,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#9CA3AF',
+        marginTop: 16,
+        fontWeight: '500',
     },
 });

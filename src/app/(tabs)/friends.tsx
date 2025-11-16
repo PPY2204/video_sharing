@@ -3,25 +3,18 @@
  * Display user's friends and following list
  */
 
-import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { supabaseService } from "@/services/supabase.service";
+import type { User } from "@/types";
+import React, { useEffect, useState } from "react";
 import {
-    FlatList,
     Image,
-    ImageSourcePropType,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-interface Friend {
-    id: string;
-    name: string;
-    username: string;
-    avatar: ImageSourcePropType;
+interface Friend extends User {
     isFollowing: boolean;
     mutualFriends: number;
     videos: number;
@@ -31,41 +24,31 @@ interface RenderFriendItemProps {
     item: Friend;
 }
 
-// Mock data for friends
-const friendsList: Friend[] = [
-    {
-        id: "1",
-        name: "Sarah Wilson",
-        username: "@sarahw",
-        avatar: require("@/assets/images/home/You.png"),
-        isFollowing: true,
-        mutualFriends: 12,
-        videos: 45,
-    },
-    {
-        id: "2",
-        name: "Mike Chen",
-        username: "@mikec",
-        avatar: require("@/assets/images/home/Julia.png"),
-        isFollowing: true,
-        mutualFriends: 8,
-        videos: 32,
-    },
-    {
-        id: "3",
-        name: "Emily Davis",
-        username: "@emilyd",
-        avatar: require("@/assets/images/home/William.png"),
-        isFollowing: false,
-        mutualFriends: 15,
-        videos: 67,
-    },
-];
-
 export default function FriendsScreen() {
     const [searchQuery, setSearchQuery] = useState("");
     const [tab, setTab] = useState<"following" | "followers">("following");
-    const [friends, setFriends] = useState(friendsList);
+    const [friends, setFriends] = useState<Friend[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadFriends = async () => {
+            try {
+                const users = await supabaseService.users.getUsers();
+                const friendsWithData: Friend[] = users.map(user => ({
+                    ...user,
+                    isFollowing: Math.random() > 0.3, // Random for demo
+                    mutualFriends: Math.floor(Math.random() * 20),
+                    videos: Math.floor(Math.random() * 100),
+                }));
+                setFriends(friendsWithData);
+            } catch (error) {
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadFriends();
+    }, []);
 
     const handleToggleFollow = (userId: string) => {
         setFriends((prev) =>
@@ -79,17 +62,26 @@ export default function FriendsScreen() {
 
     const filteredFriends = friends.filter(
         (friend) =>
-            friend.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (friend.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
             friend.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const renderFriendItem = ({ item }: RenderFriendItemProps) => (
-        <View style={styles.friendCard}>
-            <TouchableOpacity style={styles.friendInfo} activeOpacity={0.7}>
-                <Image source={item.avatar} style={styles.avatar} />
-                <View style={styles.friendDetails}>
-                    <Text style={styles.friendName}>{item.name}</Text>
-                    <Text style={styles.username}>{item.username}</Text>
+    const renderFriendItem = ({ item }: RenderFriendItemProps) => {
+        const avatarSource = item.profileImage
+            ? typeof item.profileImage === 'string'
+                ? { uri: item.profileImage }
+                : item.profileImage
+            : null;
+
+        return (
+            <View style={styles.friendCard}>
+                <TouchableOpacity style={styles.friendInfo} activeOpacity={0.7}>
+                    {avatarSource && (
+                        <Image source={avatarSource} style={styles.avatar} />
+                    )}
+                    <View style={styles.friendDetails}>
+                        <Text style={styles.friendName}>{item.fullName || item.username}</Text>
+                        <Text style={styles.username}>@{item.username}</Text>
                     <Text style={styles.mutualFriends}>
                         {item.mutualFriends} mutual · {item.videos} videos
                     </Text>
@@ -115,79 +107,17 @@ export default function FriendsScreen() {
         </View>
     );
 
-    return (
-        <SafeAreaView style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Friends</Text>
-                <TouchableOpacity style={styles.addButton}>
-                    <Ionicons name="person-add" size={24} color="#000" />
-                </TouchableOpacity>
-            </View>
-
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-                <Ionicons
-                    name="search"
-                    size={20}
-                    color="#999"
-                    style={styles.searchIcon}
-                />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search friends..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholderTextColor="#999"
-                />
-            </View>
-
-            {/* Tabs */}
-            <View style={styles.tabContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, tab === "following" && styles.tabActive]}
-                    onPress={() => setTab("following")}
-                >
-                    <Text
-                        style={[
-                            styles.tabText,
-                            tab === "following" && styles.tabTextActive,
-                        ]}
-                    >
-                        Following
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, tab === "followers" && styles.tabActive]}
-                    onPress={() => setTab("followers")}
-                >
-                    <Text
-                        style={[
-                            styles.tabText,
-                            tab === "followers" && styles.tabTextActive,
-                        ]}
-                    >
-                        Followers
-                    </Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Friends List */}
-            <FlatList
-                data={filteredFriends}
-                renderItem={renderFriendItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
-        </SafeAreaView>
-    );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         flexDirection: "row",
@@ -312,4 +242,6 @@ const styles = StyleSheet.create({
     followingButtonText: {
         color: "#666",
     },
-});
+}
+);
+}

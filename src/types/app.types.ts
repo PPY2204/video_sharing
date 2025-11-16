@@ -128,6 +128,41 @@ export interface Follow {
   createdAt: string;
 }
 
+// ==================== STORY TYPES ====================
+
+/**
+ * Story Entity - Real story from database
+ */
+export interface Story {
+  id: string;
+  userId: string;
+  user: User;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  duration?: number;
+  caption?: string;
+  views: number;
+  createdAt: string;
+  expiresAt: string;
+  isViewed?: boolean;
+}
+
+// ==================== FILTER TYPES ====================
+
+/**
+ * Filter Entity
+ * Video filters for creation
+ */
+export interface Filter {
+  id: string;
+  name: string;
+  thumbnail?: string | ImageSourcePropType;
+  category?: "for-you" | "trending" | "saved";
+  isActive?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+}
+
 // ==================== HOME SCREEN TYPES ====================
 
 /**
@@ -160,8 +195,9 @@ export interface TrendingItem {
 export interface TopicItem {
   id: string;
   title: string;
-  icon: ImageSourcePropType;
+  icon: string | ImageSourcePropType | null;
   color: string;
+  videoCount?: number;
 }
 
 /**

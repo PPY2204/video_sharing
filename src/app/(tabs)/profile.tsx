@@ -1,10 +1,12 @@
+import { supabaseService } from "@/services/supabase.service";
+import type { User, Video } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Image,
-    ImageSourcePropType,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,45 +15,85 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface VideoItem {
-    id: string;
-    image: ImageSourcePropType;
-    views: string;
-}
-
 interface RenderVideoItemProps {
-    item: VideoItem;
+    item: Video;
 }
-
-const myVideos: VideoItem[] = [
-    { id: "1", image: require("@/assets/images/search/container-43.png"), views: "1.5M" },
-    { id: "2", image: require("@/assets/images/search/container-44.png"), views: "1.6M" },
-    { id: "3", image: require("@/assets/images/search/container-40.png"), views: "1.6M" },
-    { id: "4", image: require("@/assets/images/search/container-38.png"), views: "1.5M" },
-    { id: "5", image: require("@/assets/images/search/container-41.png"), views: "1.5M" },
-    { id: "6", image: require("@/assets/images/search/container-45.png"), views: "1.6M" },
-    { id: "7", image: require("@/assets/images/search/container-43.png"), views: "1.5M" },
-    { id: "8", image: require("@/assets/images/search/container-40.png"), views: "1.5M" },
-    { id: "9", image: require("@/assets/images/search/container-44.png"), views: "1.6M" },
-];
 
 export default function Profile() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("videos");
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [myVideos, setMyVideos] = useState<Video[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const renderVideoItem = ({ item }: RenderVideoItemProps) => (
-        <View style={styles.videoItem}>
-            <Image
-                source={item.image}
-                style={styles.videoImage}
-                resizeMode="cover"
-            />
-            <View style={styles.videoStats}>
-                <Ionicons name="play" size={12} color="white" />
-                <Text style={styles.videoViews}> {item.views} views</Text>
-            </View>
-        </View>
-    );
+    // Load current user profile (using first user as example - Ruth Sanders)
+    useEffect(() => {
+        const loadUserProfile = async () => {
+            try {
+                setIsLoading(true);
+                // Get first user (Ruth Sanders with id ending in ...001)
+                const users = await supabaseService.users.getUsers();
+                
+                const user = users[0]; // Ruth Sanders
+                setCurrentUser(user);
+
+                // First check all videos to see what user_ids 
+                const allVideos = await supabaseService.videos.getVideos();
+                
+
+                // Get user's videos
+                if (user?.id) {
+                    const videos = await supabaseService.videos.getVideosByUserId(user.id);
+                    setMyVideos(videos);
+                }
+            } catch (error) {
+                console.error("Error loading profile:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadUserProfile();
+    }, []);
+
+    const formatNumber = (num: number) => {
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+        return num.toString();
+    };
+
+    const renderVideoItem = ({ item }: RenderVideoItemProps) => {
+        const imageUri = (item.thumbnail as string) || 'https://via.placeholder.com/160x220/EC4899/ffffff?text=Video';
+        
+        return (
+            <TouchableOpacity 
+                style={styles.videoItem}
+                onPress={() => router.push(`/video/${item.id}`)}
+                activeOpacity={0.8}
+            >
+                <Image
+                    source={{ uri: imageUri }}
+                    style={styles.videoImage}
+                    resizeMode="cover"
+                    onError={(e) => console.log('Image load error:', imageUri, e.nativeEvent.error)}
+                />
+                <View style={styles.videoStats}>
+                    <Ionicons name="play" size={12} color="white" />
+                    <Text style={styles.videoViews}> {formatNumber(item.views)} views</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#EC4899" />
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -76,12 +118,17 @@ export default function Profile() {
                 <View style={styles.profileSection}>
                     <View style={styles.avatarContainer}>
                         <Image
-                            source={require("@/assets/images/search/avatar-13.png")}
+                            source={{ 
+                                uri: (currentUser?.profileImage as string) || 'https://via.placeholder.com/112/EC4899/ffffff?text=User' 
+                            }}
                             style={styles.avatar}
                             resizeMode="cover"
                         />
                     </View>
-                    <Text style={styles.userName}>Ruth Sanders</Text>
+                    <Text style={styles.userName}>{currentUser?.fullName || currentUser?.username || 'User'}</Text>
+                    {currentUser?.bio && (
+                        <Text style={styles.userBio}>{currentUser.bio}</Text>
+                    )}
 
                     {/* Stats */}
                     <View style={styles.statsContainer}>
@@ -90,14 +137,14 @@ export default function Profile() {
                             onPress={() => router.push({
                                 pathname: "/user/following",
                                 params: {
-                                    name: "Ruth Sanders",
-                                    followers: "628",
-                                    following: "203",
+                                    name: currentUser?.fullName || currentUser?.username || 'User',
+                                    followers: formatNumber(currentUser?.followers || 0),
+                                    following: formatNumber(currentUser?.following || 0),
                                     tab: "following",
                                 },
                             })}
                         >
-                            <Text style={styles.statNumber}>203</Text>
+                            <Text style={styles.statNumber}>{formatNumber(currentUser?.following || 0)}</Text>
                             <Text style={styles.statLabel}>Following</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -105,18 +152,18 @@ export default function Profile() {
                             onPress={() => router.push({
                                 pathname: "/user/following",
                                 params: {
-                                    name: "Ruth Sanders",
-                                    followers: "628",
-                                    following: "203",
+                                    name: currentUser?.fullName || currentUser?.username || 'User',
+                                    followers: formatNumber(currentUser?.followers || 0),
+                                    following: formatNumber(currentUser?.following || 0),
                                     tab: "followers",
                                 },
                             })}
                         >
-                            <Text style={styles.statNumber}>628</Text>
+                            <Text style={styles.statNumber}>{formatNumber(currentUser?.followers || 0)}</Text>
                             <Text style={styles.statLabel}>Followers</Text>
                         </TouchableOpacity>
                         <View style={styles.statItem}>
-                            <Text style={styles.statNumber}>2634</Text>
+                            <Text style={styles.statNumber}>{formatNumber(currentUser?.likes || 0)}</Text>
                             <Text style={styles.statLabel}>Like</Text>
                         </View>
                     </View>
@@ -167,14 +214,22 @@ export default function Profile() {
 
                 {/* Videos Grid */}
                 <View style={styles.gridContainer}>
-                    <FlatList
-                        data={myVideos}
-                        renderItem={renderVideoItem}
-                        keyExtractor={(item) => item.id}
-                        numColumns={3}
-                        columnWrapperStyle={styles.gridRow}
-                        scrollEnabled={false}
-                    />
+                    {myVideos.length > 0 ? (
+                        <FlatList
+                            data={myVideos}
+                            renderItem={renderVideoItem}
+                            keyExtractor={(item) => item.id}
+                            numColumns={3}
+                            columnWrapperStyle={styles.gridRow}
+                            scrollEnabled={false}
+                        />
+                    ) : (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="videocam-outline" size={64} color="#D1D5DB" />
+                            <Text style={styles.emptyText}>No videos yet</Text>
+                            <Text style={styles.emptySubtext}>Start creating and sharing your videos!</Text>
+                        </View>
+                    )}
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -233,6 +288,34 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginTop: 16,
         color: '#111827',
+    },
+    userBio: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 8,
+        textAlign: 'center',
+        paddingHorizontal: 32,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#6B7280',
+        marginTop: 16,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        marginTop: 8,
     },
     statsContainer: {
         flexDirection: 'row',

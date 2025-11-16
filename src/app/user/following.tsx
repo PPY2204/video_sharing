@@ -56,7 +56,6 @@ export default function UserFollowingScreen() {
                 setFollowing(followingUsers);
                 setSuggestions(suggestionUsers);
             } catch (error) {
-                console.error('Failed to load users:', error);
             } finally {
                 setIsLoading(false);
             }
@@ -156,6 +155,13 @@ export default function UserFollowingScreen() {
         );
     }
 
+    // Get avatar for header (assuming first following user or default)
+    const headerAvatarSource = following.length > 0 && following[0].profileImage
+        ? typeof following[0].profileImage === 'string'
+            ? { uri: following[0].profileImage }
+            : following[0].profileImage
+        : null;
+
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             {/* Header */}
@@ -164,10 +170,12 @@ export default function UserFollowingScreen() {
                     <Ionicons name="chevron-back" size={28} color="#000" />
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
-                    <Image
-                        source={require("@/assets/images/home/You.png")}
-                        style={styles.headerAvatar}
-                    />
+                    {headerAvatarSource && (
+                        <Image
+                            source={headerAvatarSource}
+                            style={styles.headerAvatar}
+                        />
+                    )}
                     <Text style={styles.headerName}>{userName}</Text>
                 </View>
                 <View style={{ width: 40 }} />

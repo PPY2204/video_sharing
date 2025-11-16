@@ -3,12 +3,18 @@
  * Full-screen video player with comments and interactions
  */
 
+import { CommentSection } from '@/components/comments/CommentSection';
+import { VideoPlayer } from '@/components/video/VideoPlayer';
+import { useVideoDetail } from '@/hooks/useVideos';
+import { useAuthStore } from '@/store/authStore';
+import { getVideoSource } from '@/utils/videoAssets';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+    ActivityIndicator,
     Dimensions,
-    Image,
+    Modal,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -21,26 +27,56 @@ const { width, height } = Dimensions.get("window");
 export default function VideoDetailScreen() {
     const params = useLocalSearchParams();
     const router = useRouter();
+    const videoId = (params.id as string) || "1";
+    const { video, isLoading } = useVideoDetail(videoId);
+    const { currentUser } = useAuthStore();
     const [isLiked, setIsLiked] = useState(false);
     const [showComments, setShowComments] = useState(false);
 
-    // Mock video data
-    const video = {
-        id: params.id || "1",
-        title: "Amazing Dance Performance 🔥",
-        description: "Check out this amazing dance performance! #dance #trending #viral",
-        videoUrl: "https://example.com/video.mp4",
-        thumbnail: require("@/assets/images/home/Perfect-lady.png"),
-        views: "2.5M",
-        likes: "150K",
-        comments: "2.3K",
-        shares: "890",
-        user: {
-            name: "Sarah Wilson",
-            username: "@sarahw",
-            avatar: require("@/assets/images/home/You.png"),
-            isFollowing: false,
-        },
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.container} edges={["top"]}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#FF3B5C" />
+                    <Text style={styles.loadingText}>Loading video...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!video) {
+        return (
+            <SafeAreaView style={styles.container} edges={["top"]}>
+                <View style={styles.loadingContainer}>
+                    <Ionicons name="videocam-off-outline" size={64} color="#666" />
+                    <Text style={styles.errorText}>Video not found</Text>
+                    <Text style={styles.errorSubtext}>Video ID: {videoId}</Text>
+                    <TouchableOpacity style={styles.backButtonError} onPress={() => router.back()}>
+                        <Ionicons name="arrow-back" size={20} color="#fff" />
+                        <Text style={styles.backButtonText}>Go Back</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // Video source handles both local assets and remote URLs
+    const videoSource = getVideoSource(video.videoUrl);
+    
+    const thumbnailSource = typeof video.thumbnail === 'string'
+        ? { uri: video.thumbnail }
+        : video.thumbnail;
+
+    const avatarSource = video.user?.profileImage
+        ? typeof video.user.profileImage === 'string'
+            ? { uri: video.user.profileImage }
+            : video.user.profileImage
+        : null;
+
+    const formatCount = (count: number) => {
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
     };
 
     return (
@@ -53,72 +89,58 @@ export default function VideoDetailScreen() {
                 >
                     <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
+                <View style={styles.headerCenter}>
+                    <Text style={styles.headerTitle} numberOfLines={1}>
+                        {video.user?.username || 'Video'}
+                    </Text>
+                </View>
                 <TouchableOpacity style={styles.moreButton}>
                     <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                 </TouchableOpacity>
             </View>
 
-            {/* Video Player Placeholder */}
-            <View style={styles.videoContainer}>
-                <Image source={video.thumbnail} style={styles.video} resizeMode="cover" />
-                <TouchableOpacity style={styles.playButton}>
-                    <Ionicons name="play" size={48} color="#fff" />
-                </TouchableOpacity>
-            </View>
+            {/* Video Player - Full screen with built-in controls */}
+            <VideoPlayer 
+                video={video} 
+                isActive={true}
+                onLike={(videoId) => {
+                    // Handle like
+                }}
+                onComment={(videoId) => {
+                    setShowComments(true);
+                }}
+                onShare={(videoId) => {
+                    // Handle share
+                }}
+            />
 
-            {/* Action Buttons (Right Side) */}
-            <View style={styles.actionsContainer}>
-                {/* User Avatar */}
-                <TouchableOpacity style={styles.actionItem}>
-                    <Image source={video.user.avatar} style={styles.actionAvatar} />
-                    <View style={styles.followBadge}>
-                        <Ionicons name="add" size={16} color="#fff" />
-                    </View>
-                </TouchableOpacity>
-
-                {/* Like */}
-                <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => setIsLiked(!isLiked)}
-                >
-                    <Ionicons
-                        name={isLiked ? "heart" : "heart-outline"}
-                        size={32}
-                        color={isLiked ? "#FF3B5C" : "#fff"}
+            {/* Comments Modal */}
+            <Modal
+                visible={showComments}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setShowComments(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity
+                        style={styles.modalBackdrop}
+                        activeOpacity={1}
+                        onPress={() => setShowComments(false)}
                     />
-                    <Text style={styles.actionText}>{video.likes}</Text>
-                </TouchableOpacity>
-
-                {/* Comment */}
-                <TouchableOpacity
-                    style={styles.actionItem}
-                    onPress={() => setShowComments(!showComments)}
-                >
-                    <Ionicons name="chatbubble-outline" size={32} color="#fff" />
-                    <Text style={styles.actionText}>{video.comments}</Text>
-                </TouchableOpacity>
-
-                {/* Share */}
-                <TouchableOpacity style={styles.actionItem}>
-                    <Ionicons name="arrow-redo-outline" size={32} color="#fff" />
-                    <Text style={styles.actionText}>{video.shares}</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Bottom Info */}
-            <View style={styles.bottomInfo}>
-                <View style={styles.userInfo}>
-                    <Text style={styles.username}>@{video.user.username}</Text>
-                    <Text style={styles.description}>{video.description}</Text>
-                </View>
-
-                <View style={styles.statsBar}>
-                    <View style={styles.stat}>
-                        <Ionicons name="play" size={16} color="#fff" />
-                        <Text style={styles.statText}>{video.views} views</Text>
+                    <View style={styles.commentModalContainer}>
+                        <View style={styles.modalHandle} />
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
+                                {video.comments || 0} Comments
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowComments(false)}>
+                                <Ionicons name="close" size={24} color="#111" />
+                            </TouchableOpacity>
+                        </View>
+                        <CommentSection videoId={video.id} currentUser={currentUser} />
                     </View>
                 </View>
-            </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -128,6 +150,42 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#000",
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 16,
+        color: '#fff',
+    },
+    errorText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#fff',
+        marginTop: 16,
+    },
+    errorSubtext: {
+        fontSize: 14,
+        color: '#999',
+        marginTop: 8,
+        marginBottom: 20,
+    },
+    backButtonError: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        backgroundColor: '#FF3B5C',
+        borderRadius: 8,
+    },
+    backButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
     header: {
         position: "absolute",
         top: 50,
@@ -135,8 +193,19 @@ const styles = StyleSheet.create({
         right: 0,
         flexDirection: "row",
         justifyContent: "space-between",
+        alignItems: "center",
         paddingHorizontal: 16,
         zIndex: 10,
+    },
+    headerCenter: {
+        flex: 1,
+        alignItems: "center",
+        marginHorizontal: 12,
+    },
+    headerTitle: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "700",
     },
     backButton: {
         width: 40,
@@ -153,6 +222,43 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.5)",
         alignItems: "center",
         justifyContent: "center",
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "flex-end",
+    },
+    modalBackdrop: {
+        flex: 1,
+    },
+    commentModalContainer: {
+        backgroundColor: "#fff",
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: height * 0.8,
+        paddingTop: 12,
+    },
+    modalHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: "#D1D5DB",
+        borderRadius: 2,
+        alignSelf: "center",
+        marginBottom: 12,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
+    modalTitle: {
+        fontSize: 17,
+        fontWeight: "700",
+        color: "#111",
     },
     videoContainer: {
         flex: 1,

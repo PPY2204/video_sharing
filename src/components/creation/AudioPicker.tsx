@@ -1,6 +1,8 @@
+import { supabaseService } from '@/services/supabase.service';
+import type { Audio } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Track = { id: string; title: string; duration: string; thumbnail: any };
 
@@ -9,16 +11,25 @@ type Props = {
     onUse: (track: Track) => void;
 };
 
-const mockTracks: Track[] = [
-    { id: '1', title: 'Beautiful lady', duration: '00:30', thumbnail: require('@/assets/images/search/container-40.png') },
-    { id: '2', title: 'Nice day', duration: '00:30', thumbnail: require('@/assets/images/search/container-41.png') },
-    { id: '3', title: 'Sunny', duration: '00:30', thumbnail: require('@/assets/images/search/container-43.png') },
-    { id: '4', title: 'Flowers', duration: '00:30', thumbnail: require('@/assets/images/search/container-44.png') },
-    { id: '5', title: 'Morning coffee', duration: '00:30', thumbnail: require('@/assets/images/search/container-45.png') },
-];
-
 export default function AudioPicker({ onClose, onUse }: Props) {
     const [activeTab, setActiveTab] = useState('for-you');
+    const [audioTracks, setAudioTracks] = useState<Audio[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadAudio = async () => {
+            try {
+                const data = await supabaseService.audio.getAudioTracks();
+                setAudioTracks(data);
+            } catch (error) {
+                setAudioTracks([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadAudio();
+    }, []);
 
     return (
         <View style={styles.container}>
@@ -42,23 +53,47 @@ export default function AudioPicker({ onClose, onUse }: Props) {
                 ))}
             </View>
 
-            <ScrollView style={styles.list}>
-                {mockTracks.map(track => (
-                    <View key={track.id} style={styles.row}>
-                        <Image source={track.thumbnail} style={styles.thumb} />
-                        <View style={styles.meta}>
-                            <Text style={styles.trackTitle}>{track.title}</Text>
-                            <Text style={styles.trackDuration}>{track.duration}</Text>
-                        </View>
-                        <TouchableOpacity style={styles.useButton} onPress={() => onUse(track)}>
-                            <Text style={styles.useText}>Use</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.moreBtn} onPress={() => { }}>
-                            <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
-                        </TouchableOpacity>
-                    </View>
-                ))}
-            </ScrollView>
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FF3B5C" />
+                    <Text style={styles.loadingText}>Loading audio tracks...</Text>
+                </View>
+            ) : (
+                <ScrollView style={styles.list}>
+                    {audioTracks.map(track => {
+                        const coverSource = typeof track.cover === 'string'
+                            ? { uri: track.cover }
+                            : track.cover;
+
+                        return (
+                            <View key={track.id} style={styles.row}>
+                                {track.cover && (
+                                    <Image source={coverSource} style={styles.thumb} />
+                                )}
+                                <View style={styles.meta}>
+                                    <Text style={styles.trackTitle}>{track.name}</Text>
+                                    <Text style={styles.trackDuration}>{track.duration}</Text>
+                                    <Text style={styles.trackArtist}>{track.creator}</Text>
+                                </View>
+                                <TouchableOpacity 
+                                    style={styles.useButton} 
+                                    onPress={() => onUse({
+                                        id: track.id,
+                                        title: track.name,
+                                        duration: track.duration,
+                                        thumbnail: track.cover
+                                    })}
+                                >
+                                    <Text style={styles.useText}>Use</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.moreBtn} onPress={() => { }}>
+                                    <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    })}
+                </ScrollView>
+            )}
         </View>
     );
 }
@@ -75,11 +110,14 @@ const styles = StyleSheet.create({
     tabText: { color: '#9CA3AF' },
     tabTextActive: { color: '#EC4899', fontWeight: '600' },
     list: { marginTop: 12 },
+    loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+    loadingText: { marginTop: 12, fontSize: 14, color: '#6B7280' },
     row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
     thumb: { width: 56, height: 56, borderRadius: 8, marginRight: 12 },
     meta: { flex: 1 },
     trackTitle: { fontSize: 14, color: '#111', fontWeight: '600' },
     trackDuration: { fontSize: 12, color: '#6B7280', marginTop: 4 },
+    trackArtist: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
     useButton: { borderWidth: 1, borderColor: '#FF3B5C', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginRight: 8 },
     useText: { color: '#FF3B5C', fontWeight: '600' },
     moreBtn: { padding: 6 },

@@ -1,6 +1,13 @@
+import { useDebounce } from "@/hooks/useDebounce";
+import { useUsers } from "@/hooks/useUsers";
+import { useSearchVideos } from "@/hooks/useVideos";
+import { supabaseService } from "@/services/supabase.service";
+import { User, Video } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Image,
     ScrollView,
@@ -12,82 +19,146 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const searchVideos = [
-    {
-        id: "1",
-        image: require("@/assets/images/search/container-40.png"),
-        title: "Eiusmod Lorem aliquip exercitation",
-        views: "1.5M",
-        likes: "12.1K",
-        tag: "1 min ago",
-        user: { name: "Laura", avatar: require("@/assets/images/search/Laura.png") },
-    },
-    {
-        id: "2",
-        image: require("@/assets/images/search/container-41.png"),
-        title: "Reprehenderit ad fugiat nulla mollit",
-        views: "12.4K",
-        likes: "19.6K",
-        tag: "1 min ago",
-        user: { name: "Liz", avatar: require("@/assets/images/search/Liz.png") },
-    },
-    {
-        id: "3",
-        image: require("@/assets/images/search/container-43.png"),
-        title: "Consectetur est aliquip adipisicing",
-        views: "1.5M",
-        likes: "24.3K",
-        user: { name: "Cris", avatar: require("@/assets/images/search/Cris.png") },
-    },
-    {
-        id: "4",
-        image: require("@/assets/images/search/container-44.png"),
-        title: "Aute adipisicing ea in nostrud sunt",
-        views: "1.5M",
-        likes: "29.7K",
-        user: { name: "Lina", avatar: require("@/assets/images/search/Lina.png") },
-    },
-];
 
-const suggestedTags = [
-    "Funny moments of pet",
-    "Cats",
-    "Dogs",
-    "Foods for pet",
-    "Vet center",
-];
 
 export default function Search() {
-    const [searchQuery, setSearchQuery] = useState("Pet");
-    const [activeTab, setActiveTab] = useState("trending");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [activeTab, setActiveTab] = useState<"trending" | "accounts" | "streaming" | "audio">("trending");
+    const [trendingVideos, setTrendingVideos] = useState<Video[]>([]);
+    const [streamingVideos, setStreamingVideos] = useState<Video[]>([]);
+    const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+    const [isLoadingTrending, setIsLoadingTrending] = useState(true);
+    const [isLoadingStreaming, setIsLoadingStreaming] = useState(false);
+    const [displayLimit, setDisplayLimit] = useState(10);
+    const [showFilterModal, setShowFilterModal] = useState(false);
+    const [filterOptions, setFilterOptions] = useState({
+        sortBy: 'recent' as 'recent' | 'popular' | 'views',
+        duration: 'all' as 'all' | 'short' | 'medium' | 'long'
+    });
+    
+    const { results: searchResults, isLoading: isSearching, search } = useSearchVideos();
+    const { users, isLoading: isLoadingUsers, fetchUsers } = useUsers();
+    const debouncedSearch = useDebounce(searchQuery, 500);
 
-    const renderVideoItem = ({ item }: { item: typeof searchVideos[0] }) => (
-        <View style={styles.videoCard}>
-            <TouchableOpacity activeOpacity={0.85}>
-                <View style={styles.videoImageContainer}>
-                    <Image
-                        source={item.image}
-                        style={styles.videoImage}
-                        resizeMode="cover"
-                    />
+    // Load trending videos on mount
+    useEffect(() => {
+        loadTrendingVideos();
+        loadSuggestedTags();
+    }, []);
 
-                    {/* Tag "1 min ago" with fire icon */}
-                    {item.tag && (
-                        <View style={styles.tagBadge}>
-                            <Text style={styles.tagText}>🔥 {item.tag}</Text>
-                        </View>
-                    )}
+    // Load videos when tab changes
+    useEffect(() => {
+        if (activeTab === "streaming" && streamingVideos.length === 0) {
+            loadStreamingVideos();
+        }
+    }, [activeTab]);
+
+    // Search when debounced query changes
+    useEffect(() => {
+        if (debouncedSearch.trim()) {
+            if (activeTab === "accounts") {
+                fetchUsers();
+            } else if (activeTab === "trending" || activeTab === "streaming") {
+                search(debouncedSearch);
+            }
+        }
+    }, [debouncedSearch, activeTab]);
+
+    const loadTrendingVideos = async () => {
+        try {
+            setIsLoadingTrending(true);
+            const videos = await supabaseService.videos.getTrendingVideos();
+            setTrendingVideos(videos);
+        } catch (error) {
+            console.error("Error loading trending videos:", error);
+        } finally {
+            setIsLoadingTrending(false);
+        }
+    };
+
+    const loadStreamingVideos = async () => {
+        try {
+            setIsLoadingStreaming(true);
+            const videos = await supabaseService.videos.getVideos(1, 20);
+            setStreamingVideos(videos.data);
+        } catch (error) {
+            console.error("Error loading streaming videos:", error);
+        } finally {
+            setIsLoadingStreaming(false);
+        }
+    };
+
+    const loadSuggestedTags = async () => {
+        try {
+            const topics = await supabaseService.topics.getTopics();
+            setSuggestedTags(topics.slice(0, 8).map(t => t.title));
+        } catch (error) {
+            setSuggestedTags(["Gaming", "Music", "Sports", "Food", "Travel", "Fashion", "Tech", "Art"]);
+        }
+    };
+
+    const formatNumber = (num: number): string => {
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+        return num.toString();
+    };
+
+    const getDisplayVideos = (): Video[] => {
+        let videos: Video[] = [];
+        
+        if (searchQuery.trim() && searchResults.length > 0) {
+            videos = searchResults;
+        } else if (activeTab === "streaming") {
+            videos = streamingVideos;
+        } else {
+            videos = trendingVideos;
+        }
+
+        // Apply sorting based on filter
+        if (filterOptions.sortBy === 'popular') {
+            videos = [...videos].sort((a, b) => b.likes - a.likes);
+        } else if (filterOptions.sortBy === 'views') {
+            videos = [...videos].sort((a, b) => b.views - a.views);
+        }
+
+        // Apply duration filter
+        if (filterOptions.duration !== 'all') {
+            videos = videos.filter(v => {
+                if (filterOptions.duration === 'short') return v.duration < 60;
+                if (filterOptions.duration === 'medium') return v.duration >= 60 && v.duration < 300;
+                if (filterOptions.duration === 'long') return v.duration >= 300;
+                return true;
+            });
+        }
+
+        return videos.slice(0, displayLimit);
+    };
+
+    const renderVideoItem = ({ item }: { item: Video }) => {
+
+        return (
+            <View style={styles.videoCard}>
+                <TouchableOpacity 
+                    activeOpacity={0.85}
+                    onPress={() => router.push(`/video/${item.id}`)}
+                >
+                    <View style={styles.videoImageContainer}>
+                        <Image
+                            source={{ uri: typeof item.thumbnail === 'string' ? item.thumbnail : '' }}
+                            style={styles.videoImage}
+                            resizeMode="cover"
+                        />
 
                     {/* Views and Likes */}
                     <View style={styles.statsContainer}>
                         <View style={styles.statsRow}>
                             <View style={styles.statBadge}>
                                 <Ionicons name="play" size={12} color="white" />
-                                <Text style={styles.statText}>{item.views} views</Text>
+                                <Text style={styles.statText}>{formatNumber(item.views)} views</Text>
                             </View>
                             <View style={styles.statBadge}>
                                 <Ionicons name="heart" size={12} color="white" />
-                                <Text style={styles.statText}>{item.likes}</Text>
+                                <Text style={styles.statText}>{formatNumber(item.likes)}</Text>
                             </View>
                         </View>
                     </View>
@@ -100,12 +171,29 @@ export default function Search() {
             </Text>
 
             {/* User info */}
-            <View style={styles.userInfo}>
-                <Image source={item.user.avatar} style={styles.avatar} />
-                <Text style={styles.username}>{item.user.name}</Text>
+            {item.user && (
+                <TouchableOpacity 
+                    style={styles.userInfo}
+                    onPress={() => item.user?.id && router.push(`/user/${item.user.id}`)}
+                    activeOpacity={0.7}
+                >
+                    <Image 
+                        source={{ 
+                            uri: typeof item.user.profileImage === 'string' 
+                                ? item.user.profileImage 
+                                : 'https://via.placeholder.com/40' 
+                        }} 
+                        style={styles.avatar}
+                        defaultSource={{ uri: 'https://via.placeholder.com/40' }}
+                    />
+                    <Text style={styles.username} numberOfLines={1}>
+                        {item.user.username || item.user.fullName || 'Unknown User'}
+                    </Text>
+                </TouchableOpacity>
+            )}
             </View>
-        </View>
-    );
+        );
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -125,10 +213,69 @@ export default function Search() {
                             <Ionicons name="close-circle" size={20} color="#9CA3AF" />
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={styles.filterButton} activeOpacity={0.7}>
+                    <TouchableOpacity 
+                        style={styles.filterButton} 
+                        activeOpacity={0.7}
+                        onPress={() => setShowFilterModal(!showFilterModal)}
+                    >
                         <Ionicons name="options-outline" size={22} color="#6B7280" />
                     </TouchableOpacity>
                 </View>
+
+                {/* Filter Options */}
+                {showFilterModal && (
+                    <View style={styles.filterModal}>
+                        <Text style={styles.filterTitle}>Sort by</Text>
+                        <View style={styles.filterRow}>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.sortBy === 'recent' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, sortBy: 'recent'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.sortBy === 'recent' && styles.filterOptionTextActive]}>Recent</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.sortBy === 'popular' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, sortBy: 'popular'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.sortBy === 'popular' && styles.filterOptionTextActive]}>Popular</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.sortBy === 'views' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, sortBy: 'views'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.sortBy === 'views' && styles.filterOptionTextActive]}>Views</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.filterTitle}>Duration</Text>
+                        <View style={styles.filterRow}>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.duration === 'all' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, duration: 'all'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.duration === 'all' && styles.filterOptionTextActive]}>All</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.duration === 'short' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, duration: 'short'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.duration === 'short' && styles.filterOptionTextActive]}>{'<1 min'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.duration === 'medium' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, duration: 'medium'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.duration === 'medium' && styles.filterOptionTextActive]}>1-5 min</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.filterOption, filterOptions.duration === 'long' && styles.filterOptionActive]}
+                                onPress={() => setFilterOptions({...filterOptions, duration: 'long'})}
+                            >
+                                <Text style={[styles.filterOptionText, filterOptions.duration === 'long' && styles.filterOptionTextActive]}>{'5+ min'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
             </View>
 
             {/* Tabs */}
@@ -178,39 +325,110 @@ export default function Search() {
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Videos Grid */}
-                <View style={styles.gridContainer}>
-                    <FlatList
-                        data={searchVideos}
-                        renderItem={renderVideoItem}
-                        keyExtractor={(item) => item.id}
-                        numColumns={2}
-                        columnWrapperStyle={styles.gridRow}
-                        scrollEnabled={false}
-                    />
-                </View>
+                {(activeTab === "trending" || activeTab === "streaming") && (
+                    <View style={styles.gridContainer}>
+                        {((activeTab === "trending" ? isLoadingTrending : isLoadingStreaming) || isSearching) ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#EC4899" />
+                            </View>
+                        ) : getDisplayVideos().length > 0 ? (
+                            <FlatList
+                                data={getDisplayVideos()}
+                                renderItem={renderVideoItem}
+                                keyExtractor={(item) => item.id}
+                                numColumns={2}
+                                columnWrapperStyle={styles.gridRow}
+                                scrollEnabled={false}
+                            />
+                        ) : (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>No videos found</Text>
+                            </View>
+                        )}
 
-                <TouchableOpacity style={styles.showMoreButton} activeOpacity={0.7}>
-                    <View style={styles.showMoreContent}>
-                        <Text style={styles.showMoreText}>Show more</Text>
-                        <Ionicons name="chevron-down" size={18} color="#EC4899" />
+                        {/* Show More Button */}
+                        {!isSearching && !((activeTab === "trending" ? isLoadingTrending : isLoadingStreaming)) && 
+                         getDisplayVideos().length >= displayLimit && 
+                         displayLimit < (activeTab === "streaming" ? streamingVideos.length : trendingVideos.length) && (
+                            <TouchableOpacity 
+                                style={styles.showMoreButton} 
+                                activeOpacity={0.7}
+                                onPress={() => setDisplayLimit(prev => prev + 10)}
+                            >
+                                <View style={styles.showMoreContent}>
+                                    <Text style={styles.showMoreText}>Show more +</Text>
+                                    <Ionicons name="chevron-down" size={18} color="#EC4899" />
+                                </View>
+                            </TouchableOpacity>
+                        )}
                     </View>
-                </TouchableOpacity>
+                )}
+
+                {/* Accounts Tab */}
+                {activeTab === "accounts" && (
+                    <View style={styles.accountsContainer}>
+                        {isLoadingUsers ? (
+                            <ActivityIndicator size="large" color="#EC4899" />
+                        ) : searchQuery.trim() && users.length > 0 ? (
+                            users.filter((user: User) => 
+                                user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                user.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
+                            ).map((user: User) => (
+                                <TouchableOpacity
+                                    key={user.id}
+                                    style={styles.accountCard}
+                                    onPress={() => router.push(`/user/${user.id}`)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Image
+                                        source={{ uri: typeof user.profileImage === 'string' ? user.profileImage : 'https://via.placeholder.com/50' }}
+                                        style={styles.accountAvatar}
+                                    />
+                                    <View style={styles.accountInfo}>
+                                        <Text style={styles.accountName}>{user.fullName}</Text>
+                                        <Text style={styles.accountUsername}>@{user.username}</Text>
+                                        {user.bio && (
+                                            <Text style={styles.accountBio} numberOfLines={2}>{user.bio}</Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            ))
+                        ) : (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>Search for users...</Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {/* Audio tab placeholder */}
+                {activeTab === "audio" && (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>Coming soon...</Text>
+                    </View>
+                )}
 
                 {/* Maybe You're Interested */}
-                <View style={styles.suggestedSection}>
-                    <Text style={styles.suggestedTitle}>Maybe you're interested</Text>
-                    <View style={styles.tagsContainer}>
-                        {suggestedTags.map((tag, index) => (
-                            <TouchableOpacity
-                                key={index}
-                                style={styles.tag}
-                                activeOpacity={0.75}
-                            >
-                                <Text style={styles.tagText2}>{tag}</Text>
-                            </TouchableOpacity>
-                        ))}
+                {(activeTab === "trending" || activeTab === "streaming") && suggestedTags.length > 0 && (
+                    <View style={styles.suggestedSection}>
+                        <Text style={styles.suggestedTitle}>Maybe you're interested</Text>
+                        <View style={styles.tagsContainer}>
+                            {suggestedTags.map((tag, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={styles.tag}
+                                    activeOpacity={0.75}
+                                    onPress={() => {
+                                        setSearchQuery(tag);
+                                        search(tag);
+                                    }}
+                                >
+                                    <Text style={styles.tagText2}>{tag}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                     </View>
-                </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );
@@ -226,13 +444,50 @@ const styles = StyleSheet.create({
         paddingTop: 8,
         paddingBottom: 12,
     },
+    filterModal: {
+        backgroundColor: '#F9FAFB',
+        borderRadius: 12,
+        padding: 8,
+    },
+    filterTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#111827',
+        marginBottom: 10,
+        marginTop: 8,
+    },
+    filterRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    filterOption: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    filterOptionActive: {
+        backgroundColor: '#EC4899',
+        borderColor: '#EC4899',
+    },
+    filterOptionText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    filterOptionTextActive: {
+        color: '#FFFFFF',
+    },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#F3F4F6',
         borderRadius: 9999,
         paddingHorizontal: 16,
-        paddingVertical: 14,
+        paddingVertical: 2,
     },
     searchInput: {
         flex: 1,
@@ -247,24 +502,32 @@ const styles = StyleSheet.create({
     },
     tabsContainer: {
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        maxHeight: 80,
+        paddingBottom: 28,
+        paddingTop: 4,
     },
     tabsContent: {
-        gap: 10,
+        gap: 12,
+        paddingRight: 16,
     },
     tab: {
-        paddingHorizontal: 24,
-        paddingVertical: 10,
-        borderRadius: 15,
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        borderRadius: 20,
         backgroundColor: '#F3F4F6',
+        minWidth: 90,
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 36,
     },
     tabActive: {
         backgroundColor: '#EC4899',
     },
     tabText: {
-        fontWeight: 'bold',
-        fontSize: 15,
+        fontWeight: '600',
+        fontSize: 14,
         color: '#374151',
+        textAlign: 'center',
     },
     tabTextActive: {
         color: '#FFFFFF',
@@ -292,22 +555,6 @@ const styles = StyleSheet.create({
     videoImage: {
         width: '100%',
         height: 224,
-    },
-    tagBadge: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: '#EF4444',
-        borderRadius: 9999,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    tagText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        fontWeight: 'bold',
     },
     statsContainer: {
         position: 'absolute',
@@ -345,19 +592,22 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 8,
+        paddingVertical: 4,
+        zIndex: 10,
     },
     avatar: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        marginRight: 6,
-        borderWidth: 1,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        marginRight: 8,
+        borderWidth: 1.5,
         borderColor: '#E5E7EB',
     },
     username: {
-        fontSize: 12,
-        color: '#6B7280',
+        fontSize: 13,
+        color: '#374151',
         fontWeight: '500',
+        flex: 1,
     },
     showMoreButton: {
         alignItems: 'center',
@@ -375,7 +625,7 @@ const styles = StyleSheet.create({
     },
     suggestedSection: {
         paddingHorizontal: 16,
-        paddingBottom: 32,
+        paddingBottom: 100,
     },
     suggestedTitle: {
         fontSize: 18,
@@ -400,5 +650,60 @@ const styles = StyleSheet.create({
         color: '#2563EB',
         fontWeight: '600',
         fontSize: 14,
+    },
+    loadingContainer: {
+        paddingVertical: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyContainer: {
+        paddingVertical: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#9CA3AF',
+        fontWeight: '500',
+    },
+    accountsContainer: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+    },
+    accountCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    accountAvatar: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        marginRight: 12,
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+    },
+    accountInfo: {
+        flex: 1,
+    },
+    accountName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#111827',
+        marginBottom: 2,
+    },
+    accountUsername: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginBottom: 4,
+    },
+    accountBio: {
+        fontSize: 13,
+        color: '#9CA3AF',
+        lineHeight: 18,
     },
 });

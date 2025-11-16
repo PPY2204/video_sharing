@@ -31,7 +31,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({ videoId, current
         }
     }, [newComment, currentUser, replyingTo, addComment]);
 
-    const handleLikeComment = useCallback((commentId: string) => console.log('Like:', commentId), []);
+    const handleLikeComment = useCallback((commentId: string) => {}, []);
     const handleReplyComment = useCallback((commentId: string) => setReplyingTo(commentId), []);
     const cancelReply = useCallback(() => setReplyingTo(null), []);
 

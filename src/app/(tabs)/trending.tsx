@@ -3,9 +3,13 @@
  * Display trending/popular videos
  */
 
+import { useTrendingVideos } from "@/hooks/useVideos";
+import type { Video } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+    ActivityIndicator,
     FlatList,
     Image,
     StyleSheet,
@@ -15,119 +19,97 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Mock data for trending videos
-const trendingVideos = [
-    {
-        id: "1",
-        thumbnail: require("@/assets/images/home/Perfect-lady.png"),
-        title: "Amazing Dance Performance",
-        views: "2.5M",
-        likes: "150K",
-        user: {
-            name: "Sarah Wilson",
-            avatar: require("@/assets/images/home/You.png"),
-        },
-        duration: "0:45",
-    },
-    {
-        id: "2",
-        thumbnail: require("@/assets/images/home/Rose.png"),
-        title: "Cooking Tutorial: Perfect Pasta",
-        views: "1.8M",
-        likes: "98K",
-        user: {
-            name: "Chef Mike",
-            avatar: require("@/assets/images/home/Julia.png"),
-        },
-        duration: "2:15",
-    },
-    {
-        id: "3",
-        thumbnail: require("@/assets/images/home/Experience.png"),
-        title: "Travel Vlog: Japan 2024",
-        views: "3.2M",
-        likes: "210K",
-        user: {
-            name: "Travel With Me",
-            avatar: require("@/assets/images/home/William.png"),
-        },
-        duration: "5:30",
-    },
-    {
-        id: "4",
-        thumbnail: require("@/assets/images/home/Yourself.png"),
-        title: "Funny Cat Compilation",
-        views: "5.1M",
-        likes: "420K",
-        user: {
-            name: "Pet Lovers",
-            avatar: require("@/assets/images/home/Peter.png"),
-        },
-        duration: "3:20",
-    },
-];
-
-interface VideoItem {
-    id: string;
-    thumbnail: any;
-    duration: string;
-    user: {
-        name: string;
-        avatar: any;
-    };
-    title: string;
-    views: string;
-    likes: string;
-}
-
 interface RenderItemProps {
-    item: VideoItem;
+    item: Video;
 }
 
 export default function TrendingScreen() {
+    const router = useRouter();
     const [filter, setFilter] = useState<"all" | "today" | "week" | "month">("all");
+    const { videos: trendingVideos, isLoading } = useTrendingVideos(20);
 
-    const renderVideoItem = ({ item }: RenderItemProps) => (
-        <TouchableOpacity style={styles.videoCard} activeOpacity={0.8}>
-            <Image source={item.thumbnail} style={styles.thumbnail} resizeMode="cover" />
+    const formatCount = (count: number) => {
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
+    };
 
-            {/* Duration Badge */}
-            <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>{item.duration}</Text>
-            </View>
+    const formatDuration = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
-            {/* Video Info */}
-            <View style={styles.videoInfo}>
-                <View style={styles.userSection}>
-                    <Image source={item.user.avatar} style={styles.avatar} />
-                    <View style={styles.textSection}>
-                        <Text style={styles.title} numberOfLines={2}>
-                            {item.title}
-                        </Text>
-                        <Text style={styles.username}>{item.user.name}</Text>
+    const renderVideoItem = ({ item }: RenderItemProps) => {
+        try {
+            // Safety checks for null/undefined data
+            if (!item) {
+                return null;
+            }
+
+            const thumbnailSource = typeof item.thumbnail === 'string'
+                ? { uri: item.thumbnail }
+                : item.thumbnail;
+
+            // Fallback avatar if no user data
+            const avatarSource = item.user?.profileImage
+                ? typeof item.user.profileImage === 'string'
+                    ? { uri: item.user.profileImage }
+                    : item.user.profileImage
+                : null;
+
+            return (
+                <TouchableOpacity 
+                    style={styles.videoCard} 
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/video/${item.id}`)}
+                >
+                    <Image source={thumbnailSource} style={styles.thumbnail} resizeMode="cover" />
+
+                    {/* Duration Badge */}
+                    <View style={styles.durationBadge}>
+                        <Text style={styles.durationText}>{formatDuration(item.duration || 0)}</Text>
                     </View>
-                </View>
 
-                {/* Stats */}
-                <View style={styles.statsRow}>
-                    <View style={styles.stat}>
-                        <Ionicons name="play" size={14} color="#666" />
-                        <Text style={styles.statText}>{item.views}</Text>
+                    {/* Video Info */}
+                    <View style={styles.videoInfo}>
+                        <View style={styles.userSection}>
+                            {avatarSource && <Image source={avatarSource} style={styles.avatar} />}
+                            <View style={styles.textSection}>
+                                <Text style={styles.title} numberOfLines={2}>
+                                    {item.title || 'Untitled Video'}
+                                </Text>
+                                <Text style={styles.username}>{item.user?.username || 'Unknown User'}</Text>
+                            </View>
+                        </View>
+
+                        {/* Stats */}
+                        <View style={styles.statsRow}>
+                            <View style={styles.stat}>
+                                <Ionicons name="play" size={14} color="#666" />
+                                <Text style={styles.statText}>{formatCount(item.views || 0)}</Text>
+                            </View>
+                            <View style={styles.stat}>
+                                <Ionicons name="heart" size={14} color="#FF3B5C" />
+                                <Text style={styles.statText}>{formatCount(item.likes || 0)}</Text>
+                            </View>
+                        </View>
                     </View>
-                    <View style={styles.stat}>
-                        <Ionicons name="heart" size={14} color="#FF3B5C" />
-                        <Text style={styles.statText}>{item.likes}</Text>
-                    </View>
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
+                </TouchableOpacity>
+            );
+        } catch (error) {
+            return null;
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>🔥 Trending</Text>
+                <View style={styles.headerLeft}>
+                    <Ionicons name="flame" size={28} color="#FF3B5C" />
+                    <Text style={styles.headerTitle}>Trending</Text>
+                </View>
                 <TouchableOpacity style={styles.filterButton}>
                     <Ionicons name="filter" size={24} color="#000" />
                 </TouchableOpacity>
@@ -154,13 +136,31 @@ export default function TrendingScreen() {
             </View>
 
             {/* Trending Videos List */}
-            <FlatList
-                data={trendingVideos}
-                renderItem={renderVideoItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#FF3B5C" />
+                    <Text style={styles.loadingText}>Loading trending videos...</Text>
+                </View>
+            ) : trendingVideos.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Ionicons name="flame-outline" size={64} color="#ccc" />
+                    <Text style={styles.emptyText}>No trending videos yet</Text>
+                    <Text style={styles.emptySubtext}>Check back later for hot content!</Text>
+                </View>
+            ) : (
+                <>
+                    <Text style={{ padding: 16, color: '#999' }}>
+                        Showing {trendingVideos.length} trending videos
+                    </Text>
+                    <FlatList
+                        data={trendingVideos}
+                        renderItem={renderVideoItem}
+                        keyExtractor={(item) => item.id}
+                        contentContainerStyle={styles.listContainer}
+                        showsVerticalScrollIndicator={false}
+                    />
+                </>
+            )}
         </SafeAreaView>
     );
 }
@@ -170,6 +170,34 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#fff",
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 16,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#999',
+        marginTop: 8,
+    },
     header: {
         flexDirection: "row",
         alignItems: "center",
@@ -178,6 +206,11 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
         borderBottomWidth: 1,
         borderBottomColor: "#f0f0f0",
+    },
+    headerLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
     },
     headerTitle: {
         fontSize: 24,
@@ -211,6 +244,10 @@ const styles = StyleSheet.create({
     },
     filterTabTextActive: {
         color: "#fff",
+    },
+    listContainer: {
+        padding: 16,
+        gap: 16,
     },
     listContent: {
         padding: 16,
